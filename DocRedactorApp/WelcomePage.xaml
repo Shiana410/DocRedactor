@@ -10,6 +10,17 @@
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
     <Grid>
+        <!-- Toast-style InfoBar at the top, hidden by default -->
+        <InfoBar
+            x:Name="UnsupportedFileBar"
+            VerticalAlignment="Top"
+            Margin="24,24,24,0"
+            IsOpen="False"
+            Severity="Warning"
+            Title="Unsupported file"
+            Message="DocRedactor only accepts .xps and .oxps files."
+            Canvas.ZIndex="10"/>
+
         <StackPanel
             HorizontalAlignment="Center"
             VerticalAlignment="Center"

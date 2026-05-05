@@ -14,6 +14,7 @@
 #include <winrt/Microsoft.UI.Xaml.h>
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
 #include <winrt/Microsoft.UI.Xaml.Interop.h>
+#include <winrt/Microsoft.UI.Dispatching.h>
 
 #include <Shobjidl.h>
 
@@ -74,7 +75,6 @@ namespace winrt::DocRedactorApp::implementation
             co_return;
         }
 
-        // Take only the first dropped item; ignore extras for v1.
         auto file = items.GetAt(0).try_as<StorageFile>();
         if (file == nullptr)
         {
@@ -82,13 +82,15 @@ namespace winrt::DocRedactorApp::implementation
             co_return;
         }
 
-        auto ext = file.FileType();  // includes the leading dot, e.g. ".xps"
+        auto ext = file.FileType();
         if (ext != L".xps" && ext != L".oxps")
         {
             std::wstring msg = L"[DocRedactor] Drop ignored -- wrong extension: ";
             msg += ext;
             msg += L"\n";
             OutputDebugStringW(msg.c_str());
+
+            ShowUnsupportedFileMessage(ext);
             co_return;
         }
 
@@ -111,7 +113,6 @@ namespace winrt::DocRedactorApp::implementation
         picker.FileTypeFilter().Append(L".xps");
         picker.FileTypeFilter().Append(L".oxps");
 
-        // WinUI 3 packaged apps require explicit window association.
         HWND hwnd = implementation::App::MainWindowHandle();
         auto initWithWindow = picker.as<::IInitializeWithWindow>();
         check_hresult(initWithWindow->Initialize(hwnd));
@@ -143,5 +144,36 @@ namespace winrt::DocRedactorApp::implementation
         {
             OutputDebugStringW(L"[DocRedactor] No parent Frame -- cannot navigate.\n");
         }
+    }
+
+    IAsyncAction WelcomePage::ShowUnsupportedFileMessage(
+        winrt::hstring const& fileExtension)
+    {
+        // Capture a strong ref to ourselves so the page isn't destroyed
+        // mid-coroutine if navigation happens.
+        auto strongThis = get_strong();
+
+        // Capture the UI dispatcher while we're still on the UI thread.
+        auto uiDispatcher = DispatcherQueue();
+
+        std::wstring msg = L"DocRedactor only accepts .xps and .oxps files. You dropped: ";
+        msg += fileExtension;
+
+        UnsupportedFileBar().Message(msg);
+        UnsupportedFileBar().IsOpen(true);
+
+        // Wait 4 seconds on a thread-pool timer.
+        co_await std::chrono::seconds{ 4 };
+
+        // Marshal back to the UI thread via TryEnqueue, since std::chrono
+        // awaits resume on the thread pool. We can't touch UnsupportedFileBar
+        // directly here -- it'd throw hresult_wrong_thread.
+        uiDispatcher.TryEnqueue([weakThis = get_weak()]()
+            {
+                if (auto self = weakThis.get())
+                {
+                    self->UnsupportedFileBar().IsOpen(false);
+                }
+            });
     }
 }

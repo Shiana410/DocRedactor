@@ -28,6 +28,11 @@ namespace winrt::DocRedactorApp::implementation
         // Helper used by both the picker and the drop handler to navigate
         // to ReviewPage with the selected file's path as parameter.
         void NavigateToReview(winrt::hstring const& path);
+
+        // Show the "unsupported file" InfoBar with a custom message and
+        // schedule auto-dismissal after a few seconds.
+        winrt::Windows::Foundation::IAsyncAction ShowUnsupportedFileMessage(
+            winrt::hstring const& fileExtension);
     };
 }
 

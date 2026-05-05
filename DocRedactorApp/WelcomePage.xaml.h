@@ -16,13 +16,18 @@ namespace winrt::DocRedactorApp::implementation
             winrt::Windows::Foundation::IInspectable const& sender,
             winrt::Microsoft::UI::Xaml::DragEventArgs const& e);
 
-        void DropZone_Drop(
+        winrt::Windows::Foundation::IAsyncAction DropZone_Drop(
             winrt::Windows::Foundation::IInspectable const& sender,
             winrt::Microsoft::UI::Xaml::DragEventArgs const& e);
 
         winrt::Windows::Foundation::IAsyncAction OpenFileButton_Click(
             winrt::Windows::Foundation::IInspectable const& sender,
             winrt::Microsoft::UI::Xaml::RoutedEventArgs const& e);
+
+    private:
+        // Helper used by both the picker and the drop handler to navigate
+        // to ReviewPage with the selected file's path as parameter.
+        void NavigateToReview(winrt::hstring const& path);
     };
 }
 

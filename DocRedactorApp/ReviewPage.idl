@@ -1,0 +1,8 @@
+namespace DocRedactorApp
+{
+    [default_interface]
+    runtimeclass ReviewPage : Microsoft.UI.Xaml.Controls.Page
+    {
+        ReviewPage();
+    }
+}

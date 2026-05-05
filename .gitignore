@@ -62,3 +62,12 @@ BundleArtifacts/
 # OS artifacts
 Thumbs.db
 .DS_Store
+
+# Test fixtures (XPS/OXPS files used during development)
+*.xps
+*.oxps
+
+# Common dev scratch locations
+test/
+tests/
+fixtures/

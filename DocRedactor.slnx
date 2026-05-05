@@ -1,0 +1,11 @@
+<Solution>
+  <Configurations>
+    <Platform Name="ARM64" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="DocRedactorApp/DocRedactorApp.vcxproj" Id="caf52443-258e-4979-8add-01e3d9f35039">
+    <Deploy />
+  </Project>
+  <Project Path="DocRedactorEngine/DocRedactorEngine.vcxproj" Id="b9b8a49a-0881-4f49-91e8-63df4ed74951" />
+</Solution>

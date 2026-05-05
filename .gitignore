@@ -64,6 +64,8 @@ Thumbs.db
 .DS_Store
 
 # Test fixtures (XPS/OXPS files used during development)
+test.txt
+test.oxps
 *.xps
 *.oxps
 

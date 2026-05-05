@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "App.xaml.h"
 #include "MainWindow.xaml.h"
+#include <microsoft.ui.xaml.window.h>
 
 using namespace winrt;
 using namespace Microsoft::UI::Xaml;
@@ -37,7 +38,17 @@ namespace winrt::DocRedactorApp::implementation
     /// <param name="e">Details about the launch request and process.</param>
     void App::OnLaunched([[maybe_unused]] LaunchActivatedEventArgs const& e)
     {
-        window = make<MainWindow>();
+        // Fully qualify implementation::MainWindow to disambiguate from
+        // Microsoft::UI::Xaml types brought in by <microsoft.ui.xaml.window.h>.
+        window = make<implementation::MainWindow>();
+        s_window = window;
+
+        // Cache the HWND for use by file pickers and other Win32-interop code.
+        // Must happen BEFORE Activate() so the HWND is ready by the time any
+        // page's handlers fire.
+        auto windowNative = window.as<::IWindowNative>();
+        winrt::check_hresult(windowNative->get_WindowHandle(&s_hwnd));
+
         window.Activate();
     }
 }

@@ -7,6 +7,22 @@ namespace winrt::DocRedactorApp::implementation
     struct WelcomePage : WelcomePageT<WelcomePage>
     {
         WelcomePage();
+
+        void DropZone_DragOver(
+            winrt::Windows::Foundation::IInspectable const& sender,
+            winrt::Microsoft::UI::Xaml::DragEventArgs const& e);
+
+        void DropZone_DragLeave(
+            winrt::Windows::Foundation::IInspectable const& sender,
+            winrt::Microsoft::UI::Xaml::DragEventArgs const& e);
+
+        void DropZone_Drop(
+            winrt::Windows::Foundation::IInspectable const& sender,
+            winrt::Microsoft::UI::Xaml::DragEventArgs const& e);
+
+        winrt::Windows::Foundation::IAsyncAction OpenFileButton_Click(
+            winrt::Windows::Foundation::IInspectable const& sender,
+            winrt::Microsoft::UI::Xaml::RoutedEventArgs const& e);
     };
 }
 

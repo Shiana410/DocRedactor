@@ -6,12 +6,79 @@
     xmlns:local="using:DocRedactorApp"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    mc:Ignorable="d">
+    mc:Ignorable="d"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
     <Grid>
-        <TextBlock Text="Hello, WinUI 3!" 
-               HorizontalAlignment="Center" 
-               VerticalAlignment="Center" 
-               FontSize="36"/>
+        <StackPanel
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Spacing="24"
+            MaxWidth="480">
+
+            <FontIcon
+                Glyph="&#xE72E;"
+                FontSize="80"
+                HorizontalAlignment="Center"
+                Foreground="{ThemeResource SystemAccentColorLight2}"/>
+
+            <TextBlock
+                Text="DocRedactor"
+                Style="{ThemeResource TitleLargeTextBlockStyle}"
+                HorizontalAlignment="Center"/>
+
+            <TextBlock
+                Text="Detect and redact PII from XPS documents"
+                Style="{ThemeResource BodyTextBlockStyle}"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                HorizontalAlignment="Center"
+                TextAlignment="Center"
+                TextWrapping="Wrap"/>
+
+            <Border
+                x:Name="DropZone"
+                AllowDrop="True"
+                DragOver="DropZone_DragOver"
+                DragLeave="DropZone_DragLeave"
+                Drop="DropZone_Drop"
+                BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                BorderThickness="2"
+                CornerRadius="8"
+                Background="{ThemeResource ControlFillColorDefaultBrush}"
+                Padding="32"
+                MinWidth="400"
+                MinHeight="160"
+                Margin="0,16,0,0">
+
+                <StackPanel
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Spacing="12">
+                    <FontIcon
+                        Glyph="&#xE8E5;"
+                        FontSize="40"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    <TextBlock
+                        Text="Drop an XPS or OXPS file here"
+                        Style="{ThemeResource BodyTextBlockStyle}"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+            <TextBlock
+                Text="or"
+                Style="{ThemeResource CaptionTextBlockStyle}"
+                Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                HorizontalAlignment="Center"/>
+
+            <Button
+                x:Name="OpenFileButton"
+                Content="Open File..."
+                Style="{ThemeResource AccentButtonStyle}"
+                Click="OpenFileButton_Click"
+                HorizontalAlignment="Center"
+                MinWidth="160"/>
+        </StackPanel>
     </Grid>
 </Page>

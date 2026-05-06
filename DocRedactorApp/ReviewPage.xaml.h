@@ -10,8 +10,7 @@ namespace winrt::DocRedactorApp::implementation
 
         // Called by the framework when this page becomes the Frame's content.
         // We use this to receive the file path navigation parameter.
-        void OnNavigatedTo(
-            winrt::Microsoft::UI::Xaml::Navigation::NavigationEventArgs const& e);
+        winrt::Windows::Foundation::IAsyncAction OnNavigatedTo(Microsoft::UI::Xaml::Navigation::NavigationEventArgs const& e);
 
         void BackButton_Click(
             winrt::Windows::Foundation::IInspectable const& sender,

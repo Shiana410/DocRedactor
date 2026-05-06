@@ -4,6 +4,8 @@
 #include "ReviewPage.g.cpp"
 #endif
 
+#include <winrt/Windows.Storage.h>
+#include <winrt/DocRedactorEngine.h>
 #include <winrt/Microsoft.UI.Xaml.h>
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
 #include <winrt/Microsoft.UI.Xaml.Navigation.h>
@@ -21,18 +23,42 @@ namespace winrt::DocRedactorApp::implementation
         InitializeComponent();
     }
 
-    void ReviewPage::OnNavigatedTo(NavigationEventArgs const& e)
+    winrt::Windows::Foundation::IAsyncAction ReviewPage::OnNavigatedTo(NavigationEventArgs const& e)
     {
-        // The navigation parameter is a boxed hstring containing the file path.
-        // unbox_value_or returns a default if the box is null or wrong type --
-        // safer than unbox_value which throws.
-        auto path = winrt::unbox_value_or<winrt::hstring>(e.Parameter(), L"(no file)");
+        auto path = unbox_value_or<hstring>(e.Parameter(), L"");
         FilePathText().Text(path);
 
-        std::wstring msg = L"[DocRedactor] ReviewPage navigated to with path: ";
-        msg += path;
-        msg += L"\n";
-        OutputDebugStringW(msg.c_str());
+        if (path.empty())
+        {
+            co_return;
+        }
+
+        try
+        {
+            auto file = co_await winrt::Windows::Storage::StorageFile::GetFileFromPathAsync(path);
+
+            auto parser = winrt::DocRedactorEngine::XpsParser{};
+            auto segments = co_await parser.ParseAsync(file);
+
+            auto count = segments.Size();
+            std::wstring resultText = L"Found ";
+            resultText += std::to_wstring(count);
+            resultText += L" segment(s).";
+
+            if (count > 0)
+            {
+                resultText += L"\nFirst: ";
+                resultText += std::wstring{ segments.GetAt(0).Text() };
+            }
+
+            ParseResultText().Text(winrt::hstring{ resultText });
+        }
+        catch (winrt::hresult_error const& ex)
+        {
+            std::wstring errorText = L"Error: ";
+            errorText += std::wstring{ ex.message() };
+            ParseResultText().Text(winrt::hstring{ errorText });
+        }
     }
 
     void ReviewPage::BackButton_Click(

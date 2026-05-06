@@ -48,18 +48,27 @@
             Background="{ThemeResource ControlFillColorDefaultBrush}"
             Padding="24">
             <StackPanel
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                Spacing="8">
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Spacing="8">
                 <FontIcon
-                    Glyph="&#xE7C3;"
-                    FontSize="32"
-                    Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
-                <TextBlock
-                    Text="PII detection results will appear here"
-                    Style="{ThemeResource BodyTextBlockStyle}"
-                    Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                    HorizontalAlignment="Center"/>
+                Glyph="&#xE7C3;"
+                FontSize="32"
+                Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                    <TextBlock
+                        Text="PII detection results will appear here"
+                        Style="{ThemeResource BodyTextBlockStyle}"
+                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                        HorizontalAlignment="Center"/>
+                    <TextBlock x:Name="ParseResultText"
+                        Text=""
+                        FontSize="14"
+                        Margin="0,16,0,0"
+                        IsTextSelectionEnabled="True"
+                        TextWrapping="Wrap"
+                        HorizontalAlignment="Center"
+                        TextAlignment="Center"
+                        Foreground="{ThemeResource TextFillColorPrimaryBrush}"/> 
             </StackPanel>
         </Border>
 

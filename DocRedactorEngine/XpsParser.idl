@@ -1,0 +1,24 @@
+namespace DocRedactorEngine
+{
+    [default_interface]
+    runtimeclass XpsParser
+    {
+        XpsParser();
+        Int32 MyProperty;
+        String Greeting();
+        Windows.Foundation.IAsyncOperation<Windows.Foundation.Collections.IVectorView<TextSegment> > ParseAsync(Windows.Storage.StorageFile file);
+    }
+
+    [default_interface]
+    runtimeclass TextSegment
+    {
+        TextSegment();
+        String Text{ get; };
+        Int32 PageIndex{ get; };
+        Single OriginX{ get; };
+        Single OriginY{ get; };
+        Single Width{ get; };
+        Single Height{ get; };
+        Single FontSize{ get; };
+    }
+}

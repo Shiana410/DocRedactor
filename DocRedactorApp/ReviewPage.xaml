@@ -13,6 +13,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -39,41 +40,58 @@
                 IsTextSelectionEnabled="True"/>
         </StackPanel>
 
-        <Border
+        <TextBlock
             Grid.Row="2"
-            Margin="0,24,0,0"
-            BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
-            BorderThickness="1"
-            CornerRadius="8"
-            Background="{ThemeResource ControlFillColorDefaultBrush}"
-            Padding="24">
-            <StackPanel
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            Spacing="8">
-                <FontIcon
-                Glyph="&#xE7C3;"
-                FontSize="32"
-                Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+            x:Name="ResultSummaryText"
+            Text=""
+            Style="{ThemeResource BodyStrongTextBlockStyle}"
+            Margin="0,24,0,8"/>
+
+        <Grid Grid.Row="3" Margin="0,0,0,0">
+            <!-- Placeholder shown when no results yet -->
+            <Border
+                x:Name="PlaceholderBorder"
+                BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Background="{ThemeResource ControlFillColorDefaultBrush}"
+                Padding="24"
+                Visibility="Visible">
+                <StackPanel
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Spacing="8">
+                    <FontIcon
+                        Glyph="&#xE7C3;"
+                        FontSize="32"
+                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
                     <TextBlock
                         Text="PII detection results will appear here"
                         Style="{ThemeResource BodyTextBlockStyle}"
                         Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                         HorizontalAlignment="Center"/>
-                    <TextBlock x:Name="ParseResultText"
-                        Text=""
-                        FontSize="14"
-                        Margin="0,16,0,0"
-                        IsTextSelectionEnabled="True"
-                        TextWrapping="Wrap"
-                        HorizontalAlignment="Center"
-                        TextAlignment="Center"
-                        Foreground="{ThemeResource TextFillColorPrimaryBrush}"/> 
-            </StackPanel>
-        </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- ListView shown when there are results -->
+            <Border
+                x:Name="SegmentsBorder"
+                BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Background="{ThemeResource ControlFillColorDefaultBrush}"
+                Visibility="Collapsed">
+                <ListView
+                    x:Name="SegmentsList"
+                    SelectionMode="None"
+                    IsItemClickEnabled="False"
+                    Padding="8">
+                </ListView>
+            </Border>
+        </Grid>
 
         <StackPanel
-            Grid.Row="3"
+            Grid.Row="4"
             Orientation="Horizontal"
             Spacing="12"
             HorizontalAlignment="Right"

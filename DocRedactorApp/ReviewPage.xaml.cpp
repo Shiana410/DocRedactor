@@ -41,23 +41,48 @@ namespace winrt::DocRedactorApp::implementation
             auto segments = co_await parser.ParseAsync(file);
 
             auto count = segments.Size();
-            std::wstring resultText = L"Found ";
-            resultText += std::to_wstring(count);
-            resultText += L" segment(s).";
+
+            // Update summary line
+            std::wstring summary = L"Found ";
+            summary += std::to_wstring(count);
+            summary += L" segment(s).";
+            ResultSummaryText().Text(winrt::hstring{ summary });
 
             if (count > 0)
             {
-                resultText += L"\nFirst: ";
-                resultText += std::wstring{ segments.GetAt(0).Text() };
-            }
+                // Populate the ListView with one entry per segment
+                SegmentsList().Items().Clear();
+                for (uint32_t i = 0; i < count; ++i)
+                {
+                    auto seg = segments.GetAt(i);
 
-            ParseResultText().Text(winrt::hstring{ resultText });
+                    std::wstring line = L"[page ";
+                    line += std::to_wstring(seg.PageIndex());
+                    line += L"] \"";
+                    line += std::wstring{ seg.Text() };
+                    line += L"\"";
+
+                    auto tb = TextBlock();
+                    tb.Text(winrt::hstring{ line });
+                    tb.IsTextSelectionEnabled(true);
+                    tb.TextWrapping(TextWrapping::Wrap);
+                    tb.FontFamily(Media::FontFamily(L"Consolas"));
+                    tb.Padding(ThicknessHelper::FromUniformLength(4));
+
+                    SegmentsList().Items().Append(tb);
+                }
+
+                // Swap visibility: hide placeholder, show segments
+                PlaceholderBorder().Visibility(Visibility::Collapsed);
+                SegmentsBorder().Visibility(Visibility::Visible);
+            }
+            // else: leave placeholder visible, summary still says "Found 0 segment(s)."
         }
         catch (winrt::hresult_error const& ex)
         {
             std::wstring errorText = L"Error: ";
             errorText += std::wstring{ ex.message() };
-            ParseResultText().Text(winrt::hstring{ errorText });
+            ResultSummaryText().Text(winrt::hstring{ errorText });
         }
     }
 
@@ -65,8 +90,6 @@ namespace winrt::DocRedactorApp::implementation
         IInspectable const& /*sender*/,
         RoutedEventArgs const& /*e*/)
     {
-        // Walk up the visual tree to find the hosting Frame, then go back.
-        // In WinUI 3, Frame() on a Page returns the parent Frame if any.
         if (auto frame = Frame())
         {
             if (frame.CanGoBack())

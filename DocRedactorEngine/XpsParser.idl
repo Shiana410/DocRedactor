@@ -21,4 +21,28 @@ namespace DocRedactorEngine
         Single Height{ get; };
         Single FontSize{ get; };
     }
+
+    [default_interface]
+    runtimeclass PiiMatch
+    {
+        PiiMatch();
+        String Text{ get; };
+        Int32 Category{ get; };
+        String CategoryName{ get; };
+        Int32 SegmentIndex{ get; };
+        Int32 PositionInSegment{ get; };
+        Int32 Length{ get; };
+        Int32 PageIndex{ get; };
+        Single OriginX{ get; };
+        Single OriginY{ get; };
+        Single Width{ get; };
+        Single Height{ get; };
+    }
+
+    [default_interface]
+    runtimeclass PiiDetector
+    {
+        PiiDetector();
+        Windows.Foundation.IAsyncOperation<Windows.Foundation.Collections.IVectorView<PiiMatch> > DetectAsync(Windows.Foundation.Collections.IVectorView<TextSegment> segments);
+    }
 }

@@ -48,7 +48,6 @@
             Margin="0,24,0,8"/>
 
         <Grid Grid.Row="3" Margin="0,0,0,0">
-            <!-- Placeholder shown when no results yet -->
             <Border
                 x:Name="PlaceholderBorder"
                 BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
@@ -73,16 +72,15 @@
                 </StackPanel>
             </Border>
 
-            <!-- ListView shown when there are results -->
             <Border
-                x:Name="SegmentsBorder"
+                x:Name="MatchesBorder"
                 BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
                 BorderThickness="1"
                 CornerRadius="8"
                 Background="{ThemeResource ControlFillColorDefaultBrush}"
                 Visibility="Collapsed">
                 <ListView
-                    x:Name="SegmentsList"
+                    x:Name="MatchesList"
                     SelectionMode="None"
                     IsItemClickEnabled="False"
                     Padding="8">

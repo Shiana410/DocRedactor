@@ -8,6 +8,7 @@
 #include <winrt/DocRedactorEngine.h>
 #include <winrt/Microsoft.UI.Xaml.h>
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
+#include <winrt/Microsoft.UI.Xaml.Media.h>
 #include <winrt/Microsoft.UI.Xaml.Navigation.h>
 
 using namespace winrt;
@@ -37,30 +38,42 @@ namespace winrt::DocRedactorApp::implementation
         {
             auto file = co_await winrt::Windows::Storage::StorageFile::GetFileFromPathAsync(path);
 
+            // Step 1: parse the document into text segments.
             auto parser = winrt::DocRedactorEngine::XpsParser{};
             auto segments = co_await parser.ParseAsync(file);
 
-            auto count = segments.Size();
+            // Step 2: scan those segments for PII.
+            auto detector = winrt::DocRedactorEngine::PiiDetector{};
+            auto matches = co_await detector.DetectAsync(segments);
 
-            // Update summary line
+            auto segmentCount = segments.Size();
+            auto matchCount = matches.Size();
+
+            // Update summary line: matches first (the headline), segments second (context).
             std::wstring summary = L"Found ";
-            summary += std::to_wstring(count);
-            summary += L" segment(s).";
+            summary += std::to_wstring(matchCount);
+            summary += L" PII match(es) across ";
+            summary += std::to_wstring(segmentCount);
+            summary += L" text segment(s).";
             ResultSummaryText().Text(winrt::hstring{ summary });
 
-            if (count > 0)
+            if (matchCount > 0)
             {
-                // Populate the ListView with one entry per segment
-                SegmentsList().Items().Clear();
-                for (uint32_t i = 0; i < count; ++i)
+                // Populate the ListView with one entry per match.
+                MatchesList().Items().Clear();
+                for (uint32_t i = 0; i < matchCount; ++i)
                 {
-                    auto seg = segments.GetAt(i);
+                    auto m = matches.GetAt(i);
 
-                    std::wstring line = L"[page ";
-                    line += std::to_wstring(seg.PageIndex());
+                    std::wstring line = L"[";
+                    line += std::wstring{ m.CategoryName() };
                     line += L"] \"";
-                    line += std::wstring{ seg.Text() };
-                    line += L"\"";
+                    line += std::wstring{ m.Text() };
+                    line += L"\"  (page ";
+                    line += std::to_wstring(m.PageIndex());
+                    line += L", segment ";
+                    line += std::to_wstring(m.SegmentIndex());
+                    line += L")";
 
                     auto tb = TextBlock();
                     tb.Text(winrt::hstring{ line });
@@ -69,14 +82,14 @@ namespace winrt::DocRedactorApp::implementation
                     tb.FontFamily(Media::FontFamily(L"Consolas"));
                     tb.Padding(ThicknessHelper::FromUniformLength(4));
 
-                    SegmentsList().Items().Append(tb);
+                    MatchesList().Items().Append(tb);
                 }
 
-                // Swap visibility: hide placeholder, show segments
                 PlaceholderBorder().Visibility(Visibility::Collapsed);
-                SegmentsBorder().Visibility(Visibility::Visible);
+                MatchesBorder().Visibility(Visibility::Visible);
             }
-            // else: leave placeholder visible, summary still says "Found 0 segment(s)."
+            // else: no PII found, leave placeholder visible. Summary tells the user
+            // we did look — "Found 0 PII match(es) across N text segment(s)."
         }
         catch (winrt::hresult_error const& ex)
         {

@@ -17,6 +17,8 @@
   <ItemGroup>
     <ClInclude Include="pch.h" />
     <ClInclude Include="XpsCore.h" />
+    <ClInclude Include="PiiCore.h" />
+    <ClInclude Include="PiiShared.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="DocRedactorEngine.def" />

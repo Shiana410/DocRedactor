@@ -126,6 +126,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
+    <ClInclude Include="PiiCore.h" />
+    <ClInclude Include="PiiShared.h" />
     <ClInclude Include="XpsCore.h" />
     <ClInclude Include="XpsParser.h">
       <DependentUpon>XpsParser.cpp</DependentUpon>

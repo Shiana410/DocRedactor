@@ -32,13 +32,20 @@ The App-Engine split is deliberate: keeping redaction logic in a separate compon
 ## Pipeline
 
 StorageFile → XpsParser.ParseAsync()  → IVectorView<TextSegment>
+
 ↓
+
 PiiDetector.DetectAsync(segments)
+
 ↓
+
 IVectorView<PiiMatch>
+
 ↓
 ReviewPage shows findings → user confirms → Redactor.RedactAsync()
+
 ↓
+
 Modified .oxps written to user-chosen path
 
 PII detection covers six categories (email, phone, SSN, credit card, IP address, date of birth) with category-aware masking strategies — emails preserve the domain, phones preserve the first digit per group, credit cards preserve the last four digits, etc.

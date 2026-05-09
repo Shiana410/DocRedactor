@@ -12,12 +12,16 @@
 #if __has_include("PiiDetector.g.cpp")
 #include "PiiDetector.g.cpp"
 #endif
+#if __has_include("Redactor.g.cpp")
+#include "Redactor.g.cpp"
+#endif
 
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Storage.h>
 
 #include "XpsCore.h"
 #include "PiiCore.h"
+#include "XpsModifierCore.h"
 
 // To learn more about WinUI, the WinUI project structure,
 // and more about our project templates, see: http://aka.ms/winui-project-info.
@@ -134,5 +138,55 @@ namespace winrt::DocRedactorEngine::implementation
         }
 
         co_return matches.GetView();
+    }
+
+    winrt::Windows::Foundation::IAsyncOperation<bool> Redactor::RedactAsync(winrt::Windows::Storage::StorageFile inputFile, winrt::Windows::Storage::StorageFile outputFile, winrt::Windows::Foundation::Collections::IVectorView<winrt::DocRedactorEngine::PiiMatch> matches)
+    {
+        // Snapshot everything we need from projected objects on the calling thread,
+        // before yielding. After co_await we'll be on a thread-pool thread and
+        // shouldn't touch the projected vector view directly.
+
+        winrt::hstring inputPath = inputFile.Path();
+        winrt::hstring outputPath = outputFile.Path();
+
+        // Convert the matches collection to dlp::PiiItem array.
+        // dlp::PiiItem expects fixed-size wchar buffers; we copy with truncation safety.
+        std::vector<dlp::PiiItem> items;
+        items.reserve(matches.Size());
+
+        for (uint32_t i = 0; i < matches.Size(); ++i)
+        {
+            auto m = matches.GetAt(i);
+
+            dlp::PiiItem item{};  // zero-init: empty text buffer, all fields default
+
+            // Copy match text into the fixed buffer with size limit and null termination.
+            std::wstring matchText{ m.Text() };
+            wcsncpy_s(item.text, dlp::MAX_PII_TEXT, matchText.c_str(), _TRUNCATE);
+
+            item.category = static_cast<DWORD>(m.Category());
+            item.shouldMask = TRUE;  // Phase 3: mask everything by default.
+            // Phase 4 may add user toggles.
+            item.pageIndex = m.PageIndex();
+            item.x = static_cast<double>(m.OriginX());
+            item.y = static_cast<double>(m.OriginY());
+            item.width = static_cast<double>(m.Width());
+            item.height = static_cast<double>(m.Height());
+
+            items.push_back(item);
+        }
+
+        // Yield to a thread-pool thread for the COM-heavy redaction work.
+        co_await winrt::resume_background();
+
+        // Run the salvaged redactor.
+        bool ok = dlp::XpsModifier::ApplyRedactions(
+            std::wstring{ inputPath },
+            std::wstring{ outputPath },
+            items.data(),
+            static_cast<DWORD>(items.size()),
+            /*deleteText*/ false);
+
+        co_return ok;
     }
 }

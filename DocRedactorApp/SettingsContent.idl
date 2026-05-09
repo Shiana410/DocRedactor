@@ -1,0 +1,13 @@
+namespace DocRedactorApp
+{
+    [default_interface]
+    runtimeclass SettingsContent : Microsoft.UI.Xaml.Controls.UserControl
+    {
+        SettingsContent();
+
+    // Fires when the user clicks Save or Cancel. Listener should close
+    // the parent Flyout. The boolean indicates whether changes were saved
+    // (true) or discarded (false), in case the listener wants to react.
+    event Windows.Foundation.EventHandler<Boolean> RequestClose;
+}
+}

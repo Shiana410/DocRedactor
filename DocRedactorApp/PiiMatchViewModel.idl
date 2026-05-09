@@ -1,0 +1,13 @@
+namespace DocRedactorApp
+{
+    [default_interface]
+    runtimeclass PiiMatchViewModel : Microsoft.UI.Xaml.Data.INotifyPropertyChanged
+    {
+        PiiMatchViewModel();
+
+    // Wraps the engine's PiiMatch with UI-layer concerns (toggle state).
+    DocRedactorEngine.PiiMatch Match { get; };
+    Boolean ShouldMask;
+    String Description { get; };
+}
+}

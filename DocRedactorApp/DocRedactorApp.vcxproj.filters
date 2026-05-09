@@ -7,16 +7,23 @@
     <Page Include="MainWindow.xaml" />
     <Page Include="WelcomePage.xaml" />
     <Page Include="ReviewPage.xaml" />
+    <Page Include="SettingsContent.xaml" />
   </ItemGroup>
   <ItemGroup>
     <Midl Include="MainWindow.idl" />
+    <Midl Include="PiiMatchViewModel.idl" />
+    <Midl Include="SettingsContent.idl" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="$(GeneratedFilesDir)module.g.cpp" />
+    <ClCompile Include="PiiMatchViewModel.cpp" />
+    <ClCompile Include="AppSettings.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
+    <ClInclude Include="PiiMatchViewModel.h" />
+    <ClInclude Include="AppSettings.h" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="Assets\Wide310x150Logo.scale-200.png">

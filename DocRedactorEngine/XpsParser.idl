@@ -45,4 +45,11 @@ namespace DocRedactorEngine
         PiiDetector();
         Windows.Foundation.IAsyncOperation<Windows.Foundation.Collections.IVectorView<PiiMatch> > DetectAsync(Windows.Foundation.Collections.IVectorView<TextSegment> segments);
     }
+
+    [default_interface]
+    runtimeclass Redactor
+    {
+        Redactor();
+        Windows.Foundation.IAsyncOperation<Boolean> RedactAsync(Windows.Storage.StorageFile inputFile, Windows.Storage.StorageFile outputFile, Windows.Foundation.Collections.IVectorView<PiiMatch> matches);
+    }
 }

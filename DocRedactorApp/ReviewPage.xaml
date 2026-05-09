@@ -84,21 +84,67 @@
                     SelectionMode="None"
                     IsItemClickEnabled="False"
                     Padding="8">
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="local:PiiMatchViewModel">
+                            <Grid Padding="4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <CheckBox
+                                    Grid.Column="0"
+                                    IsChecked="{x:Bind ShouldMask, Mode=TwoWay}"
+                                    MinWidth="0"
+                                    Padding="4,0,8,0"
+                                    VerticalAlignment="Center"/>
+
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Text="{x:Bind Description}"
+                                    IsTextSelectionEnabled="True"
+                                    TextWrapping="Wrap"
+                                    FontFamily="Consolas"
+                                    VerticalAlignment="Center"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
                 </ListView>
             </Border>
         </Grid>
 
-        <StackPanel
-            Grid.Row="4"
-            Orientation="Horizontal"
-            Spacing="12"
-            HorizontalAlignment="Right"
-            Margin="0,16,0,0">
-            <Button
-                x:Name="BackButton"
-                Content="Back"
-                Click="BackButton_Click"
-                MinWidth="100"/>
-        </StackPanel>
+        <Grid Grid.Row="4" Margin="0,16,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel
+                Grid.Column="1"
+                Orientation="Horizontal"
+                Spacing="12">
+                <Button
+                    x:Name="RedactButton"
+                    Content="Redact and Save..."
+                    Click="RedactButton_Click"
+                    Style="{ThemeResource AccentButtonStyle}"
+                    IsEnabled="False"
+                    MinWidth="160"/>
+                <Button
+                    x:Name="BackButton"
+                    Content="Back"
+                    Click="BackButton_Click"
+                    MinWidth="100"/>
+            </StackPanel>
+        </Grid>
+
+        <InfoBar
+            x:Name="StatusBar"
+            Grid.Row="0"
+            Grid.RowSpan="5"
+            VerticalAlignment="Top"
+            Margin="0,0,0,16"
+            IsOpen="False"
+            Canvas.ZIndex="10"/>
     </Grid>
 </Page>

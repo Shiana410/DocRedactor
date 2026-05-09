@@ -1,0 +1,121 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="DocRedactorApp.SettingsContent"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:DocRedactorApp"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Width="360"
+    MaxHeight="600">
+
+    <ScrollViewer
+        VerticalScrollBarVisibility="Auto"
+        HorizontalScrollBarVisibility="Disabled">
+        <StackPanel
+            Padding="20"
+            Spacing="16">
+
+            <TextBlock
+                Text="Settings"
+                Style="{ThemeResource SubtitleTextBlockStyle}"/>
+
+            <!-- Saving section -->
+            <StackPanel Spacing="8">
+                <TextBlock
+                    Text="Saving"
+                    Style="{ThemeResource BodyStrongTextBlockStyle}"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+                <RadioButton
+                    x:Name="SaveModeAskRadio"
+                    Content="Ask each time"
+                    GroupName="SaveModeGroup"/>
+                <RadioButton
+                    x:Name="SaveModeNextToRadio"
+                    Content="Save next to original"
+                    GroupName="SaveModeGroup"/>
+                <RadioButton
+                    x:Name="SaveModeFixedRadio"
+                    Content="Save to fixed folder"
+                    GroupName="SaveModeGroup"/>
+
+                <Grid Margin="28,4,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBox
+                        Grid.Column="0"
+                        x:Name="FixedFolderText"
+                        IsReadOnly="True"
+                        PlaceholderText="(no folder selected)"
+                        VerticalAlignment="Center"
+                        Margin="0,0,8,0"/>
+
+                    <Button
+                        Grid.Column="1"
+                        x:Name="BrowseFolderButton"
+                        Content="Browse..."
+                        Click="BrowseFolderButton_Click"
+                        VerticalAlignment="Center"/>
+                </Grid>
+            </StackPanel>
+
+            <!-- Detection section -->
+            <StackPanel Spacing="8">
+                <TextBlock
+                    Text="Detection"
+                    Style="{ThemeResource BodyStrongTextBlockStyle}"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+                <CheckBox
+                    x:Name="EmailCheck"
+                    Content="Email Address"/>
+                <CheckBox
+                    x:Name="PhoneCheck"
+                    Content="Phone Number"/>
+                <CheckBox
+                    x:Name="SsnCheck"
+                    Content="Social Security Number"/>
+                <CheckBox
+                    x:Name="CreditCardCheck"
+                    Content="Credit Card Number"/>
+                <CheckBox
+                    x:Name="IpCheck"
+                    Content="IP Address"/>
+                <CheckBox
+                    x:Name="DobCheck"
+                    Content="Date of Birth"/>
+            </StackPanel>
+
+            <!-- Action buttons -->
+            <Grid Margin="0,8,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel
+                    Grid.Column="1"
+                    Orientation="Horizontal"
+                    Spacing="8">
+                    <Button
+                        x:Name="CancelButton"
+                        Content="Cancel"
+                        Click="CancelButton_Click"
+                        MinWidth="80"/>
+                    <Button
+                        x:Name="SaveButton"
+                        Content="Save"
+                        Click="SaveButton_Click"
+                        Style="{ThemeResource AccentButtonStyle}"
+                        MinWidth="80"/>
+                </StackPanel>
+            </Grid>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

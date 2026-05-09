@@ -4,6 +4,7 @@
 #include "TextSegment.g.h"
 #include "PiiMatch.g.h"
 #include "PiiDetector.g.h"
+#include "Redactor.g.h"
 
 namespace winrt::DocRedactorEngine::implementation
 {
@@ -108,6 +109,13 @@ namespace winrt::DocRedactorEngine::implementation
 
         winrt::Windows::Foundation::IAsyncOperation<winrt::Windows::Foundation::Collections::IVectorView<winrt::DocRedactorEngine::PiiMatch>> DetectAsync(winrt::Windows::Foundation::Collections::IVectorView<winrt::DocRedactorEngine::TextSegment> segments);
     };
+
+    struct Redactor : RedactorT<Redactor>
+    {
+        Redactor() = default;
+
+        winrt::Windows::Foundation::IAsyncOperation<bool> RedactAsync(winrt::Windows::Storage::StorageFile inputFile, winrt::Windows::Storage::StorageFile outputFile, winrt::Windows::Foundation::Collections::IVectorView<winrt::DocRedactorEngine::PiiMatch> matches);
+    };
 }
 
 namespace winrt::DocRedactorEngine::factory_implementation
@@ -125,6 +133,10 @@ namespace winrt::DocRedactorEngine::factory_implementation
     };
 
     struct PiiDetector : PiiDetectorT<PiiDetector, implementation::PiiDetector>
+    {
+    };
+
+    struct Redactor : RedactorT<Redactor, implementation::Redactor>
     {
     };
 }

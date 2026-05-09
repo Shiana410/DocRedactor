@@ -8,7 +8,7 @@ namespace winrt::DocRedactorApp::implementation
     {
         MainWindow();
 
-        void SettingsButton_Click(
+        winrt::Windows::Foundation::IAsyncAction SettingsButton_Click(
             winrt::Windows::Foundation::IInspectable const& sender,
             winrt::Microsoft::UI::Xaml::RoutedEventArgs const& e);
     };

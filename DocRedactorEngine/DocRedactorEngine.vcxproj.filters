@@ -19,6 +19,7 @@
     <ClInclude Include="XpsCore.h" />
     <ClInclude Include="PiiCore.h" />
     <ClInclude Include="PiiShared.h" />
+    <ClInclude Include="XpsModifierCore.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="DocRedactorEngine.def" />

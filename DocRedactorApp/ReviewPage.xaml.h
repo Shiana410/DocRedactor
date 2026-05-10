@@ -6,6 +6,7 @@
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/DocRedactorEngine.h>
 #include "PiiMatchViewModel.h"
+#include <winrt/Microsoft.UI.Xaml.Shapes.h>
 
 namespace winrt::DocRedactorApp::implementation
 {
@@ -23,29 +24,43 @@ namespace winrt::DocRedactorApp::implementation
             winrt::Windows::Foundation::IInspectable const& sender,
             winrt::Microsoft::UI::Xaml::RoutedEventArgs const& e);
 
+        // Re-renders the preview when the pane width changes (window resize).
+        void PreviewScrollViewer_SizeChanged(
+            winrt::Windows::Foundation::IInspectable const& sender,
+            winrt::Microsoft::UI::Xaml::SizeChangedEventArgs const& e);
+
     private:
         winrt::Windows::Storage::StorageFile m_inputFile{ nullptr };
 
         winrt::Windows::Foundation::Collections::IObservableVector<winrt::DocRedactorApp::PiiMatchViewModel> m_matchViewModels{ nullptr };
 
+        // Cached parse result — preserved across SizeChanged events so we
+        // re-render at new width without re-parsing the document.
+        winrt::DocRedactorEngine::XpsParseResult m_parseResult{ nullptr };
+
         void UpdateRedactButtonState();
 
-        // Prompts the user for a filename, defaulting to suggestedName.
-        // Returns the user's chosen name, or empty hstring if user cancelled.
+        // Renders all pages from m_parseResult into PreviewStack at the
+        // current PreviewScrollViewer width. Clears existing rendering first.
+        void RenderPreview();
+        void RefreshSegmentDisplayText();
+
+        std::map<int32_t, winrt::Microsoft::UI::Xaml::Controls::TextBlock> m_segmentTextBlocks;
+
         winrt::Windows::Foundation::IAsyncOperation<winrt::hstring> PromptForFilenameAsync(
             winrt::hstring const& suggestedName);
 
-        // Shows an "overwrite or rename" dialog when a target file already exists.
-        // Returns: 0 = overwrite, 1 = rename (caller should re-prompt), 2 = cancel.
         winrt::Windows::Foundation::IAsyncOperation<int32_t> PromptForOverwriteAsync(
             winrt::hstring const& existingName);
 
-        // Resolves a target StorageFile in the given folder, prompting for name
-        // and handling collisions interactively. Returns nullptr if user cancelled.
         winrt::Windows::Foundation::IAsyncOperation<winrt::Windows::Storage::StorageFile>
             ResolveOutputFileAsync(
                 winrt::Windows::Storage::StorageFolder const& folder,
                 winrt::hstring const& suggestedName);
+
+        winrt::hstring ComposeSegmentDisplayText(
+            int32_t segmentIndex,
+            winrt::hstring const& originalText) const;
     };
 }
 

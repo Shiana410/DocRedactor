@@ -11,7 +11,10 @@
 #include <winrt/Microsoft.UI.Xaml.h>
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
 #include <winrt/Microsoft.UI.Xaml.Media.h>
+#include <winrt/Microsoft.UI.Xaml.Shapes.h>
 #include <winrt/Microsoft.UI.Xaml.Navigation.h>
+#include <winrt/Microsoft.UI.h>
+#include <winrt/Microsoft.UI.Xaml.Media.h>
 
 #include <Shobjidl.h>
 #include "App.xaml.h"
@@ -49,7 +52,8 @@ namespace winrt::DocRedactorApp::implementation
             m_inputFile = file;
 
             auto parser = winrt::DocRedactorEngine::XpsParser{};
-            auto segments = co_await parser.ParseAsync(file);
+            m_parseResult = co_await parser.ParseAsync(file);
+            auto segments = m_parseResult.Segments();
 
             auto detector = winrt::DocRedactorEngine::PiiDetector{};
             auto rawMatches = co_await detector.DetectAsync(segments);
@@ -85,8 +89,6 @@ namespace winrt::DocRedactorApp::implementation
                 {
                     auto vm = winrt::make<implementation::PiiMatchViewModel>(filteredMatches.GetAt(i));
 
-                    // Subscribe to ShouldMask changes so we can recompute button enable state.
-                    // We capture a weak ref to ourselves to avoid a retain cycle.
                     auto weakSelf = get_weak();
                     vm.PropertyChanged([weakSelf](auto const&, Microsoft::UI::Xaml::Data::PropertyChangedEventArgs const& args)
                         {
@@ -95,6 +97,7 @@ namespace winrt::DocRedactorApp::implementation
                                 if (auto strongSelf = weakSelf.get())
                                 {
                                     strongSelf->UpdateRedactButtonState();
+                                    strongSelf->RefreshSegmentDisplayText();
                                 }
                             }
                         });
@@ -108,6 +111,8 @@ namespace winrt::DocRedactorApp::implementation
                 MatchesBorder().Visibility(Visibility::Visible);
 
                 UpdateRedactButtonState();
+
+                RenderPreview();
             }
         }
         catch (winrt::hresult_error const& ex)
@@ -410,6 +415,249 @@ namespace winrt::DocRedactorApp::implementation
                 co_return nullptr;
             }
         }
+    }
+
+    winrt::hstring ReviewPage::ComposeSegmentDisplayText(
+        int32_t segmentIndex,
+        winrt::hstring const& originalText) const
+    {
+        if (m_matchViewModels == nullptr || m_matchViewModels.Size() == 0)
+        {
+            return originalText;
+        }
+
+        // Collect all checked matches that belong to this segment, sorted by
+        // start position. Each match is paired with its category so we can
+        // apply the right per-category masking algorithm.
+        struct MaskSpan
+        {
+            int32_t pos;
+            int32_t len;
+            int32_t category;
+        };
+        std::vector<MaskSpan> spans;
+
+        for (uint32_t i = 0; i < m_matchViewModels.Size(); ++i)
+        {
+            auto vm = m_matchViewModels.GetAt(i);
+            auto match = vm.Match();
+
+            if (!vm.ShouldMask()) continue;
+            if (match.SegmentIndex() != segmentIndex) continue;
+
+            spans.push_back({
+                match.PositionInSegment(),
+                match.Length(),
+                match.Category()
+                });
+        }
+
+        if (spans.empty())
+        {
+            return originalText;
+        }
+
+        // Process spans in descending position order. By rewriting from the
+        // back, earlier spans' positions remain valid even if the replacement
+        // string changes length (currently it never does, but the descending
+        // order is robust against future per-category algorithms that might).
+        std::sort(spans.begin(), spans.end(),
+            [](MaskSpan const& a, MaskSpan const& b) { return a.pos > b.pos; });
+
+        std::wstring result{ originalText };
+        for (auto const& span : spans)
+        {
+            int32_t start = span.pos;
+            int32_t end = start + span.len;
+
+            // Defensive bounds.
+            if (start < 0) start = 0;
+            if (end > static_cast<int32_t>(result.size()))
+            {
+                end = static_cast<int32_t>(result.size());
+            }
+            if (end <= start) continue;
+
+            // Pull out the matched substring, run it through the engine's
+            // category-specific masker (same algorithm as the redactor),
+            // splice the result back in.
+            winrt::hstring origSubstring{
+                result.substr(start, end - start) };
+
+            winrt::hstring maskedSubstring =
+                winrt::DocRedactorEngine::PiiDetector::MaskText(
+                    origSubstring, span.category);
+
+            std::wstring maskedStr{ maskedSubstring };
+            result.replace(start, end - start, maskedStr);
+        }
+
+        return winrt::hstring{ result };
+    }
+
+    void ReviewPage::RenderPreview()
+    {
+        // Clear any previous rendering.
+        m_segmentTextBlocks.clear();
+        PreviewStack().Children().Clear();
+
+        if (m_parseResult == nullptr)
+        {
+            // No data to render. Restore placeholder.
+            TextBlock placeholder;
+            placeholder.Text(L"Page preview will appear here");
+            placeholder.Foreground(
+                Application::Current().Resources()
+                .Lookup(box_value(L"TextFillColorTertiaryBrush"))
+                .as<Microsoft::UI::Xaml::Media::Brush>());
+            placeholder.HorizontalAlignment(HorizontalAlignment::Center);
+            placeholder.Margin(ThicknessHelper::FromLengths(0, 40, 0, 0));
+            PreviewStack().Children().Append(placeholder);
+            return;
+        }
+
+        auto pages = m_parseResult.Pages();
+        auto segments = m_parseResult.Segments();
+
+        if (pages.Size() == 0)
+        {
+            return;
+        }
+
+        // Compute the available width for the preview.
+        double availableWidth = PreviewScrollViewer().ActualWidth() -
+            PreviewScrollViewer().Padding().Left -
+            PreviewScrollViewer().Padding().Right;
+
+        if (availableWidth <= 0)
+        {
+            availableWidth = PreviewBorder().ActualWidth() - 32;
+        }
+
+        if (availableWidth <= 0)
+        {
+            return;
+        }
+
+        // Build a lookup from page index to that page's segments.
+        // We use the original IVectorView index (NOT just per-page index) because
+        // PiiMatch.SegmentIndex() is a global index into the segments vector.
+        struct IndexedSegment
+        {
+            int32_t globalIndex;
+            winrt::DocRedactorEngine::TextSegment segment;
+        };
+
+        std::map<int32_t, std::vector<IndexedSegment>> segmentsByPage;
+        for (uint32_t i = 0; i < segments.Size(); ++i)
+        {
+            auto seg = segments.GetAt(i);
+            segmentsByPage[seg.PageIndex()].push_back({
+                static_cast<int32_t>(i), seg });
+        }
+
+        // Render each page.
+        for (uint32_t i = 0; i < pages.Size(); ++i)
+        {
+            auto page = pages.GetAt(i);
+            double pageWidth = static_cast<double>(page.Width());
+            double pageHeight = static_cast<double>(page.Height());
+
+            if (pageWidth <= 0 || pageHeight <= 0)
+            {
+                continue;
+            }
+
+            double scale = availableWidth / pageWidth;
+            double scaledWidth = pageWidth * scale;
+            double scaledHeight = pageHeight * scale;
+
+            Canvas canvas;
+            canvas.Width(scaledWidth);
+            canvas.Height(scaledHeight);
+            canvas.Background(
+                Application::Current().Resources()
+                .Lookup(box_value(L"SolidBackgroundFillColorBaseBrush"))
+                .as<Microsoft::UI::Xaml::Media::Brush>());
+
+            // Position each segment on this page. The segment's TextBlock holds
+            // either the original text or a partially-masked version, depending on
+            // which matches in this segment are currently checked.
+            auto it = segmentsByPage.find(page.PageIndex());
+            if (it != segmentsByPage.end())
+            {
+                for (auto const& indexed : it->second)
+                {
+                    auto const& seg = indexed.segment;
+
+                    TextBlock tb;
+                    tb.Text(ComposeSegmentDisplayText(indexed.globalIndex, seg.Text()));
+                    tb.FontSize(seg.FontSize() * scale);
+
+                    double left = seg.OriginX() * scale;
+                    double top = (seg.OriginY() - seg.FontSize()) * scale;
+
+                    Canvas::SetLeft(tb, left);
+                    Canvas::SetTop(tb, top);
+
+                    canvas.Children().Append(tb);
+
+                    // Remember the TextBlock so we can re-render its text when
+                    // a checkbox toggles without rebuilding the whole canvas.
+                    m_segmentTextBlocks[indexed.globalIndex] = tb;
+                }
+            }
+
+            // Wrap in a Border to give each page a visual frame.
+            Border pageBorder;
+            pageBorder.Background(
+                Application::Current().Resources()
+                .Lookup(box_value(L"SolidBackgroundFillColorBaseBrush"))
+                .as<Microsoft::UI::Xaml::Media::Brush>());
+            pageBorder.BorderBrush(
+                Application::Current().Resources()
+                .Lookup(box_value(L"ControlStrokeColorDefaultBrush"))
+                .as<Microsoft::UI::Xaml::Media::Brush>());
+            pageBorder.BorderThickness(ThicknessHelper::FromUniformLength(1));
+            pageBorder.Child(canvas);
+
+            PreviewStack().Children().Append(pageBorder);
+        }
+    }
+
+    void ReviewPage::RefreshSegmentDisplayText()
+    {
+        if (m_parseResult == nullptr)
+        {
+            return;
+        }
+
+        auto segments = m_parseResult.Segments();
+
+        // Walk every tracked segment TextBlock and recompute its text.
+        // We could optimize to only refresh segments touched by the toggled
+        // match, but PropertyChanged doesn't tell us which match toggled,
+        // and there are typically few segments. O(n) is fine.
+        for (auto& [segIdx, tb] : m_segmentTextBlocks)
+        {
+            if (segIdx < 0 || static_cast<uint32_t>(segIdx) >= segments.Size())
+            {
+                continue;
+            }
+
+            auto seg = segments.GetAt(segIdx);
+            tb.Text(ComposeSegmentDisplayText(segIdx, seg.Text()));
+        }
+    }
+
+    void ReviewPage::PreviewScrollViewer_SizeChanged(
+        IInspectable const& /*sender*/,
+        Microsoft::UI::Xaml::SizeChangedEventArgs const& /*e*/)
+    {
+        // Re-render at new available width. Note: this fires often during
+        // window drag-resize. For a v1.0 with small test files, that's fine.
+        // If users redact 100-page documents, we'd debounce here.
+        RenderPreview();
     }
 
     void ReviewPage::BackButton_Click(

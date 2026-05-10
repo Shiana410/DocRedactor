@@ -35,9 +35,17 @@ struct XpsTextRun
     std::wstring fontUri;
 };
 
+struct XpsPageInfo
+{
+    int    pageIndex = 0;
+    double width = 0;   // 1/96 inch units
+    double height = 0;
+};
+
 struct XpsDocument
 {
     std::vector<XpsTextRun> textRuns;
+    std::vector<XpsPageInfo> pages;
     int                     pageCount = 0;
     std::wstring            filePath;
 };
@@ -129,6 +137,17 @@ public:
                 IXpsOMPage* page = nullptr;
                 pageRef->GetPage(&page);
                 if (!page) { pageRef->Release(); continue; }
+
+                // Capture page dimensions before walking visuals.
+                XPS_SIZE pageDim = {};
+                if (SUCCEEDED(page->GetPageDimensions(&pageDim)))
+                {
+                    XpsPageInfo pi;
+                    pi.pageIndex = globalPageIdx;
+                    pi.width = pageDim.width;
+                    pi.height = pageDim.height;
+                    doc.pages.push_back(pi);
+                }
 
                 IXpsOMVisualCollection* visuals = nullptr;
                 page->GetVisuals(&visuals);

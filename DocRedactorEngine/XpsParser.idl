@@ -6,7 +6,7 @@ namespace DocRedactorEngine
         XpsParser();
         Int32 MyProperty;
         String Greeting();
-        Windows.Foundation.IAsyncOperation<Windows.Foundation.Collections.IVectorView<TextSegment> > ParseAsync(Windows.Storage.StorageFile file);
+        Windows.Foundation.IAsyncOperation<XpsParseResult> ParseAsync(Windows.Storage.StorageFile file);
     }
 
     [default_interface]
@@ -20,6 +20,23 @@ namespace DocRedactorEngine
         Single Width{ get; };
         Single Height{ get; };
         Single FontSize{ get; };
+    }
+
+    [default_interface]
+    runtimeclass PageInfo
+    {
+        PageInfo();
+        Int32 PageIndex{ get; };
+        Single Width{ get; };
+        Single Height{ get; };
+    }
+
+    [default_interface]
+    runtimeclass XpsParseResult
+    {
+        XpsParseResult();
+        Windows.Foundation.Collections.IVectorView<TextSegment> Segments{ get; };
+        Windows.Foundation.Collections.IVectorView<PageInfo> Pages{ get; };
     }
 
     [default_interface]
@@ -44,6 +61,8 @@ namespace DocRedactorEngine
     {
         PiiDetector();
         Windows.Foundation.IAsyncOperation<Windows.Foundation.Collections.IVectorView<PiiMatch> > DetectAsync(Windows.Foundation.Collections.IVectorView<TextSegment> segments);
+
+        static String MaskText(String original, Int32 category);
     }
 
     [default_interface]

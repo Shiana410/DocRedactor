@@ -2,6 +2,8 @@
 
 #include "XpsParser.g.h"
 #include "TextSegment.g.h"
+#include "PageInfo.g.h"
+#include "XpsParseResult.g.h"
 #include "PiiMatch.g.h"
 #include "PiiDetector.g.h"
 #include "Redactor.g.h"
@@ -16,7 +18,7 @@ namespace winrt::DocRedactorEngine::implementation
         void MyProperty(int32_t value);
         winrt::hstring Greeting();
 
-        winrt::Windows::Foundation::IAsyncOperation<winrt::Windows::Foundation::Collections::IVectorView<winrt::DocRedactorEngine::TextSegment>> ParseAsync(winrt::Windows::Storage::StorageFile file);
+        winrt::Windows::Foundation::IAsyncOperation<winrt::DocRedactorEngine::XpsParseResult> ParseAsync(winrt::Windows::Storage::StorageFile file);
     };
 
     struct TextSegment : TextSegmentT<TextSegment>
@@ -51,6 +53,43 @@ namespace winrt::DocRedactorEngine::implementation
         float m_originX{ 0 }, m_originY{ 0 };
         float m_width{ 0 }, m_height{ 0 };
         float m_fontSize{ 0 };
+    };
+
+    struct PageInfo : PageInfoT<PageInfo>
+    {
+        PageInfo() = default;
+
+        PageInfo(int32_t pageIndex, float width, float height)
+            : m_pageIndex(pageIndex), m_width(width), m_height(height)
+        {
+        }
+
+        int32_t PageIndex() const noexcept { return m_pageIndex; }
+        float Width() const noexcept { return m_width; }
+        float Height() const noexcept { return m_height; }
+
+    private:
+        int32_t m_pageIndex{ 0 };
+        float m_width{ 0 }, m_height{ 0 };
+    };
+
+    struct XpsParseResult : XpsParseResultT<XpsParseResult>
+    {
+        XpsParseResult() = default;
+
+        XpsParseResult(
+            winrt::Windows::Foundation::Collections::IVectorView<winrt::DocRedactorEngine::TextSegment> segments,
+            winrt::Windows::Foundation::Collections::IVectorView<winrt::DocRedactorEngine::PageInfo> pages)
+            : m_segments(std::move(segments)), m_pages(std::move(pages))
+        {
+        }
+
+        winrt::Windows::Foundation::Collections::IVectorView<winrt::DocRedactorEngine::TextSegment> Segments() const noexcept { return m_segments; }
+        winrt::Windows::Foundation::Collections::IVectorView<winrt::DocRedactorEngine::PageInfo> Pages() const noexcept { return m_pages; }
+
+    private:
+        winrt::Windows::Foundation::Collections::IVectorView<winrt::DocRedactorEngine::TextSegment> m_segments{ nullptr };
+        winrt::Windows::Foundation::Collections::IVectorView<winrt::DocRedactorEngine::PageInfo> m_pages{ nullptr };
     };
 
     struct PiiMatch : PiiMatchT<PiiMatch>
@@ -108,6 +147,8 @@ namespace winrt::DocRedactorEngine::implementation
         PiiDetector() = default;
 
         winrt::Windows::Foundation::IAsyncOperation<winrt::Windows::Foundation::Collections::IVectorView<winrt::DocRedactorEngine::PiiMatch>> DetectAsync(winrt::Windows::Foundation::Collections::IVectorView<winrt::DocRedactorEngine::TextSegment> segments);
+
+        static winrt::hstring MaskText(winrt::hstring const& original, int32_t category);
     };
 
     struct Redactor : RedactorT<Redactor>
@@ -125,6 +166,14 @@ namespace winrt::DocRedactorEngine::factory_implementation
     };
 
     struct TextSegment : TextSegmentT<TextSegment, implementation::TextSegment>
+    {
+    };
+
+    struct PageInfo : PageInfoT<PageInfo, implementation::PageInfo>
+    {
+    };
+
+    struct XpsParseResult : XpsParseResultT<XpsParseResult, implementation::XpsParseResult>
     {
     };
 

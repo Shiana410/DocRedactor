@@ -6,6 +6,12 @@
 #if __has_include("TextSegment.g.cpp")
 #include "TextSegment.g.cpp"
 #endif
+#if __has_include("PageInfo.g.cpp")
+#include "PageInfo.g.cpp"
+#endif
+#if __has_include("XpsParseResult.g.cpp")
+#include "XpsParseResult.g.cpp"
+#endif
 #if __has_include("PiiMatch.g.cpp")
 #include "PiiMatch.g.cpp"
 #endif
@@ -43,26 +49,21 @@ namespace winrt::DocRedactorEngine::implementation
         return L"Hello from DocRedactorEngine";
     }
 
-    winrt::Windows::Foundation::IAsyncOperation<winrt::Windows::Foundation::Collections::IVectorView<winrt::DocRedactorEngine::TextSegment>> XpsParser::ParseAsync(winrt::Windows::Storage::StorageFile file)
+    winrt::Windows::Foundation::IAsyncOperation<winrt::DocRedactorEngine::XpsParseResult> XpsParser::ParseAsync(winrt::Windows::Storage::StorageFile file)
     {
-        // Capture the path on the UI thread before we yield, since file is a
-        // projected WinRT object that we want to stop touching once we move off thread.
         winrt::hstring filePath = file.Path();
 
-        // Yield to a thread-pool thread so the COM-heavy XPS parsing work
-        // doesn't block the UI thread.
         co_await winrt::resume_background();
 
-        // Run the salvaged XPS extractor.
         dlp::XpsDocument xpsDoc;
         bool ok = dlp::XpsParser::Parse(std::wstring{ filePath }, xpsDoc);
 
-        // Build the projected vector. We do this even on failure (returning empty)
-        // so the App side gets a well-formed empty result instead of an exception.
         auto segments = winrt::single_threaded_vector<winrt::DocRedactorEngine::TextSegment>();
+        auto pages = winrt::single_threaded_vector<winrt::DocRedactorEngine::PageInfo>();
 
         if (ok)
         {
+            // Convert text segments
             for (auto const& run : xpsDoc.textRuns)
             {
                 segments.Append(
@@ -75,9 +76,19 @@ namespace winrt::DocRedactorEngine::implementation
                         static_cast<float>(run.height),
                         static_cast<float>(run.fontSize)));
             }
+
+            // Convert page info
+            for (auto const& pi : xpsDoc.pages)
+            {
+                pages.Append(
+                    winrt::make<implementation::PageInfo>(
+                        pi.pageIndex,
+                        static_cast<float>(pi.width),
+                        static_cast<float>(pi.height)));
+            }
         }
 
-        co_return segments.GetView();
+        co_return winrt::make<implementation::XpsParseResult>(segments.GetView(), pages.GetView());
     }
 
     winrt::Windows::Foundation::IAsyncOperation<winrt::Windows::Foundation::Collections::IVectorView<winrt::DocRedactorEngine::PiiMatch>> PiiDetector::DetectAsync(winrt::Windows::Foundation::Collections::IVectorView<winrt::DocRedactorEngine::TextSegment> segments)
@@ -138,6 +149,13 @@ namespace winrt::DocRedactorEngine::implementation
         }
 
         co_return matches.GetView();
+    }
+
+    winrt::hstring PiiDetector::MaskText(winrt::hstring const& original, int32_t category)
+    {
+        std::wstring input{ original };
+        std::wstring masked = dlp::MaskPiiText(input, static_cast<DWORD>(category));
+        return winrt::hstring{ masked };
     }
 
     winrt::Windows::Foundation::IAsyncOperation<bool> Redactor::RedactAsync(winrt::Windows::Storage::StorageFile inputFile, winrt::Windows::Storage::StorageFile outputFile, winrt::Windows::Foundation::Collections::IVectorView<winrt::DocRedactorEngine::PiiMatch> matches)

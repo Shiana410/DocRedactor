@@ -47,72 +47,116 @@
             Style="{ThemeResource BodyStrongTextBlockStyle}"
             Margin="0,24,0,8"/>
 
-        <Grid Grid.Row="3" Margin="0,0,0,0">
+        <!-- Two-pane content area -->
+        <Grid Grid.Row="3" ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="3*"/>
+                <ColumnDefinition Width="2*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- LEFT PANE: page preview -->
             <Border
-                x:Name="PlaceholderBorder"
+                Grid.Column="0"
+                x:Name="PreviewBorder"
                 BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
                 BorderThickness="1"
                 CornerRadius="8"
-                Background="{ThemeResource ControlFillColorDefaultBrush}"
-                Padding="24"
-                Visibility="Visible">
-                <StackPanel
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    Spacing="8">
-                    <FontIcon
-                        Glyph="&#xE7C3;"
-                        FontSize="32"
-                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
-                    <TextBlock
-                        Text="PII detection results will appear here"
-                        Style="{ThemeResource BodyTextBlockStyle}"
-                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                        HorizontalAlignment="Center"/>
-                </StackPanel>
+                Background="{ThemeResource ControlFillColorDefaultBrush}">
+
+                <ScrollViewer
+                    x:Name="PreviewScrollViewer"
+                    HorizontalScrollBarVisibility="Auto"
+                    VerticalScrollBarVisibility="Auto"
+                    Padding="16"
+                    SizeChanged="PreviewScrollViewer_SizeChanged">
+                    <StackPanel
+                        x:Name="PreviewStack"
+                        Orientation="Vertical"
+                        Spacing="16"
+                        HorizontalAlignment="Center">
+                        <!-- Placeholder shown until pages render in Phase 3 -->
+                        <TextBlock
+                            x:Name="PreviewPlaceholderText"
+                            Text="Page preview will appear here"
+                            Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Margin="0,40,0,0"/>
+                    </StackPanel>
+                </ScrollViewer>
             </Border>
 
-            <Border
-                x:Name="MatchesBorder"
-                BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
-                BorderThickness="1"
-                CornerRadius="8"
-                Background="{ThemeResource ControlFillColorDefaultBrush}"
-                Visibility="Collapsed">
-                <ListView
-                    x:Name="MatchesList"
-                    SelectionMode="None"
-                    IsItemClickEnabled="False"
-                    Padding="8">
-                    <ListView.ItemTemplate>
-                        <DataTemplate x:DataType="local:PiiMatchViewModel">
-                            <Grid Padding="4">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
+            <!-- RIGHT PANE: match list -->
+            <Grid Grid.Column="1">
+                <Border
+                    x:Name="PlaceholderBorder"
+                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Background="{ThemeResource ControlFillColorDefaultBrush}"
+                    Padding="24"
+                    Visibility="Visible">
+                    <StackPanel
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="8">
+                        <FontIcon
+                            Glyph="&#xE7C3;"
+                            FontSize="32"
+                            Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                        <TextBlock
+                            Text="PII detection results will appear here"
+                            Style="{ThemeResource BodyTextBlockStyle}"
+                            Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                            HorizontalAlignment="Center"
+                            TextAlignment="Center"
+                            TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
 
-                                <CheckBox
-                                    Grid.Column="0"
-                                    IsChecked="{x:Bind ShouldMask, Mode=TwoWay}"
-                                    MinWidth="0"
-                                    Padding="4,0,8,0"
-                                    VerticalAlignment="Center"/>
+                <Border
+                    x:Name="MatchesBorder"
+                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Background="{ThemeResource ControlFillColorDefaultBrush}"
+                    Visibility="Collapsed">
+                    <ListView
+                        x:Name="MatchesList"
+                        SelectionMode="None"
+                        IsItemClickEnabled="False"
+                        Padding="8">
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="local:PiiMatchViewModel">
+                                <Grid Padding="4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
 
-                                <TextBlock
-                                    Grid.Column="1"
-                                    Text="{x:Bind Description}"
-                                    IsTextSelectionEnabled="True"
-                                    TextWrapping="Wrap"
-                                    FontFamily="Consolas"
-                                    VerticalAlignment="Center"/>
-                            </Grid>
-                        </DataTemplate>
-                    </ListView.ItemTemplate>
-                </ListView>
-            </Border>
+                                    <CheckBox
+                                        Grid.Column="0"
+                                        IsChecked="{x:Bind ShouldMask, Mode=TwoWay}"
+                                        MinWidth="0"
+                                        Padding="4,0,8,0"
+                                        VerticalAlignment="Center"/>
+
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Text="{x:Bind Description}"
+                                        IsTextSelectionEnabled="True"
+                                        TextWrapping="Wrap"
+                                        FontFamily="Consolas"
+                                        VerticalAlignment="Center"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </Border>
+            </Grid>
         </Grid>
 
+        <!-- Bottom action buttons -->
         <Grid Grid.Row="4" Margin="0,16,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -138,6 +182,7 @@
             </StackPanel>
         </Grid>
 
+        <!-- Status InfoBar (overlaid at top of grid) -->
         <InfoBar
             x:Name="StatusBar"
             Grid.Row="0"

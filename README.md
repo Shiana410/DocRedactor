@@ -23,7 +23,7 @@ The solution consists of two C++ projects with a shared salvage layer:
 
 - **DocRedactorApp** — the WinUI 3 packaged desktop application. Contains UI, navigation, file pickers, drag-drop, and user-facing logic. Built on a `Window` → `Frame` → `Page` shell pattern with a custom title bar.
 
-- **DocRedactorEngine** — a Windows Runtime Component hosting all redaction logic. Exposes five runtimeclasses to the App via the WinRT projection layer: `XpsParser`, `TextSegment`, `PiiDetector`, `PiiMatch`, and `Redactor`. Heavy work happens on background thread-pool threads via `co_await winrt::resume_background()`.
+- **DocRedactorEngine** — a Windows Runtime Component hosting all redaction logic. Exposes seven runtimeclasses to the App via the WinRT projection layer: `XpsParser`, `TextSegment`, `PageInfo`, `XpsParseResult`, `PiiDetector`, `PiiMatch`, and `Redactor`. Heavy work happens on background thread-pool threads via `co_await winrt::resume_background()`.
 
 - **Common/** — original salvaged C++ headers from an earlier port-monitor incarnation of the project. Wrapped in a `dlp::` namespace and included into the engine as `XpsCore.h`, `PiiCore.h`, and `XpsModifierCore.h`. The redaction logic itself is unchanged from the salvaged code; the engine adds WinRT projection on top.
 
@@ -31,51 +31,56 @@ The App-Engine split is deliberate: keeping redaction logic in a separate compon
 
 ## Pipeline
 
-StorageFile → XpsParser.ParseAsync()  → IVectorView<TextSegment>
+```
+StorageFile → XpsParser.ParseAsync() → XpsParseResult { Segments, Pages }
+                                              ↓
+                            PiiDetector.DetectAsync(segments)
+                                              ↓
+                                  IVectorView<PiiMatch>
+                                              ↓
+        ReviewPage: two-pane layout with live masking preview on left,
+                    per-match checkboxes with category filtering on right
+                                              ↓
+                user confirms → Redactor.RedactAsync()
+                                              ↓
+                Modified .oxps written per user's save-mode setting
+```
 
-↓
+PII detection covers six categories (email, phone, SSN, credit card, IP address, date of birth) with category-aware masking strategies — emails preserve the domain (`t***@example.com`), phones preserve the first digit per group (`5**-1**-4***`), credit cards preserve the last four digits, IP addresses preserve the first two octets, etc. The same `MaskPiiText` algorithm runs in both the live preview and the saved file, guaranteeing WYSIWYG output.
 
-PiiDetector.DetectAsync(segments)
+## Current state — v1.0 feature-complete
 
-↓
-
-IVectorView<PiiMatch>
-
-↓
-ReviewPage shows findings → user confirms → Redactor.RedactAsync()
-
-↓
-
-Modified .oxps written to user-chosen path
-
-PII detection covers six categories (email, phone, SSN, credit card, IP address, date of birth) with category-aware masking strategies — emails preserve the domain, phones preserve the first digit per group, credit cards preserve the last four digits, etc.
-
-## Current state
-
-**Working:**
+**Document handling:**
 - WinUI 3 application shell with custom title bar and Frame-based navigation
 - File selection via picker and drag-drop with file-type validation
-- Real XPS/OXPS parsing extracting positioned text runs from documents
-- PII regex detection across six categories with full segment provenance
-- Match display showing category, matched text, and source location
-- Redaction with dynamic font matching: detects the original embedded font, reverses XPS GUID-XOR obfuscation to read the TTF name table, maps to a Windows system font, and injects the substitute font for redacted text
-- Output to user-chosen `.oxps` destination via FileSavePicker
-- Status feedback via WinUI InfoBar (success/error)
+- Real XPS/OXPS parsing extracting positioned text runs and per-page dimensions
 
-**In progress (toward v1.0):**
-- Per-match toggles so users can deselect false positives before redacting
-- Settings flyout for save preferences and PII category enablement
-- Side-by-side page preview with bidirectional list-selection highlighting
+**PII detection and review:**
+- Regex detection across six categories with full segment provenance
+- Per-match checkboxes for deselecting false positives before redaction
+- Detection-flag filtering: categories disabled in Settings are dropped before display
+- Two-pane review: fit-to-width document preview on the left, match list on the right
+- Live WYSIWYG masking preview — toggling a checkbox immediately re-renders the affected segment with masked or original text
+
+**Redaction:**
+- Dynamic font matching: detects the original embedded font, reverses XPS GUID-XOR obfuscation to read the TTF name table, maps to a Windows system font, and injects the substitute font for redacted text
+- Three save modes (Ask each time / Save next to original / Save to fixed folder), each with filename prompts and collision handling
+- Status feedback via WinUI InfoBar (success / error / cancellation)
+
+**Settings:**
+- ContentDialog-based settings with persistence across sessions via `LocalSettings`
+- Per-category detection toggles (email, phone, SSN, credit card, IP, date of birth)
+- Save-mode preference with picker-driven fixed-folder selection
 
 ## Roadmap
 
 - [x] **v0.9** — Engine pipeline complete: parse → detect → redact, list-only review UI, FileSavePicker output
-- [ ] **v1.0** — Per-match toggles, settings flyout (save mode + category toggles), side-by-side page preview, persisted preferences via `LocalSettings`
-- [ ] **v1.1** — PDF support via PDFium or `Windows.Data.Pdf` (text extraction with bounding boxes)
-- [ ] **v1.2** — Batch mode for processing multiple files
-- [ ] **v1.3** — Keyboard shortcuts (Ctrl+O, Ctrl+S, page navigation), recent files list
+- [x] **v1.0** — Per-match toggles, settings ContentDialog (save mode + category toggles), side-by-side page preview with live in-place masking, persisted preferences via `LocalSettings`
+- [ ] **v1.1** — Bidirectional list ↔ preview selection (click a match in the list to scroll the preview to it), keyboard shortcuts (Ctrl+O, Ctrl+S), recent files list
+- [ ] **v1.2** — PDF support via PDFium or `Windows.Data.Pdf` (text extraction with bounding boxes)
+- [ ] **v1.3** — Batch mode for processing multiple files
 - [ ] **v1.4** — PII list filtering, toast notifications after save, High Contrast theme support
-- [ ] **v2.0** — Document-centric review: render full pages with inline PII highlighting and click-to-toggle
+- [ ] **v2.0** — Multi-page document review with page thumbnails and per-page navigation
 
 ## Building
 
@@ -98,4 +103,4 @@ This project began as a Print Support App-based DLP virtual printer that interce
 
 ## License
 
-Not yet licensed. MIT under consideration for v1.0.
+Not yet licensed. MIT under consideration for v1.0 release.

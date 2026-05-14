@@ -135,7 +135,7 @@
                     Visibility="Collapsed">
                     <ListView
                         x:Name="MatchesList"
-                        SelectionMode="None"
+                        SelectionMode="Single"
                         IsItemClickEnabled="False"
                         Padding="8">
                         <ListView.ItemTemplate>

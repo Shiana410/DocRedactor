@@ -13,8 +13,10 @@
 #include <winrt/Microsoft.UI.Xaml.Media.h>
 #include <winrt/Microsoft.UI.Xaml.Shapes.h>
 #include <winrt/Microsoft.UI.Xaml.Navigation.h>
+#include <winrt/Microsoft.UI.Xaml.Documents.h>
+#include <winrt/Microsoft.UI.Xaml.Input.h>
+#include <winrt/Microsoft.UI.Text.h>
 #include <winrt/Microsoft.UI.h>
-#include <winrt/Microsoft.UI.Xaml.Media.h>
 
 #include <Shobjidl.h>
 #include "App.xaml.h"
@@ -34,6 +36,9 @@ namespace winrt::DocRedactorApp::implementation
     ReviewPage::ReviewPage()
     {
         InitializeComponent();
+
+        MatchesList().SelectionChanged(
+            { this, &ReviewPage::MatchesList_SelectionChanged });
     }
 
     winrt::Windows::Foundation::IAsyncAction ReviewPage::OnNavigatedTo(NavigationEventArgs const& e)
@@ -504,6 +509,103 @@ namespace winrt::DocRedactorApp::implementation
         return winrt::hstring{ result };
     }
 
+    void ReviewPage::ApplySegmentInlines(
+        Microsoft::UI::Xaml::Controls::TextBlock textBlock,
+        int32_t segmentIndex)
+    {
+        // Resolve the displayed (possibly masked) text for this segment using
+        // the existing composition logic. ComposeSegmentDisplayText keeps the
+        // SAME LENGTH as the original — each per-category masker preserves
+        // character count — so positions computed against the original text
+        // stay valid against the displayed text.
+        if (m_parseResult == nullptr) return;
+
+        auto segments = m_parseResult.Segments();
+        if (segmentIndex < 0 || static_cast<uint32_t>(segmentIndex) >= segments.Size())
+        {
+            return;
+        }
+
+        auto seg = segments.GetAt(segmentIndex);
+        winrt::hstring displayText = ComposeSegmentDisplayText(segmentIndex, seg.Text());
+
+        // Figure out whether the selected match falls inside this segment.
+        // If yes, capture its start/end so we can split the text into
+        // pre/match/post Runs.
+        int32_t hlStart = -1;
+        int32_t hlEnd = -1;
+        if (m_selectedMatchIndex >= 0
+            && m_matchViewModels != nullptr
+            && static_cast<uint32_t>(m_selectedMatchIndex) < m_matchViewModels.Size())
+        {
+            auto selectedMatch = m_matchViewModels.GetAt(m_selectedMatchIndex).Match();
+            if (selectedMatch.SegmentIndex() == segmentIndex)
+            {
+                hlStart = selectedMatch.PositionInSegment();
+                hlEnd = hlStart + selectedMatch.Length();
+
+                // Clamp to displayText bounds defensively.
+                int32_t dispLen = static_cast<int32_t>(std::wstring_view{ displayText }.size());
+                if (hlStart < 0) hlStart = 0;
+                if (hlEnd > dispLen) hlEnd = dispLen;
+                if (hlEnd <= hlStart) { hlStart = -1; hlEnd = -1; }
+            }
+        }
+
+        // Clear and rebuild this TextBlock's inline content.
+        textBlock.Inlines().Clear();
+
+        std::wstring text{ displayText };
+
+        if (hlStart < 0)
+        {
+            // No highlight in this segment — single normal Run.
+            Microsoft::UI::Xaml::Documents::Run run;
+            run.Text(displayText);
+            textBlock.Inlines().Append(run);
+        }
+        else
+        {
+            // Pre-match Run (may be empty).
+            if (hlStart > 0)
+            {
+                Microsoft::UI::Xaml::Documents::Run pre;
+                pre.Text(winrt::hstring{ text.substr(0, hlStart) });
+                textBlock.Inlines().Append(pre);
+            }
+
+            // Match Run (bold + accent color).
+            Microsoft::UI::Xaml::Documents::Run hl;
+            hl.Text(winrt::hstring{ text.substr(hlStart, hlEnd - hlStart) });
+            hl.FontWeight(Microsoft::UI::Text::FontWeights::Bold());
+            try
+            {
+                auto brush = Application::Current().Resources()
+                    .Lookup(box_value(L"AccentTextFillColorPrimaryBrush"))
+                    .try_as<Microsoft::UI::Xaml::Media::Brush>();
+                if (brush != nullptr)
+                {
+                    hl.Foreground(brush);
+                }
+                // If brush resolution fails for any reason, leave Foreground
+                // unset — the Bold weight alone still distinguishes the match.
+            }
+            catch (...)
+            {
+                // Resource not present in current theme; bold-only is fine.
+            }
+            textBlock.Inlines().Append(hl);
+
+            // Post-match Run (may be empty).
+            if (hlEnd < static_cast<int32_t>(text.size()))
+            {
+                Microsoft::UI::Xaml::Documents::Run post;
+                post.Text(winrt::hstring{ text.substr(hlEnd) });
+                textBlock.Inlines().Append(post);
+            }
+        }
+    }
+
     void ReviewPage::RenderPreview()
     {
         // Clear any previous rendering.
@@ -595,9 +697,26 @@ namespace winrt::DocRedactorApp::implementation
                     auto const& seg = indexed.segment;
 
                     TextBlock tb;
-                    tb.Text(ComposeSegmentDisplayText(indexed.globalIndex, seg.Text()));
+                    // Fixed UI display size — independent of the document's
+                    // authored font size. The actual redaction in
+                    // Redactor::RedactAsync preserves the original sizes;
+                    // this only affects on-screen preview.
                     tb.FontSize(14.0);
+                    // Monospace font so column-aligned content (whitespace-
+                    // padded values in form-style documents) lines up in
+                    // the preview.
                     tb.FontFamily(Microsoft::UI::Xaml::Media::FontFamily{ L"Consolas" });
+
+                    // Stash the segment's global index in Tag so the Tapped
+                    // handler can recover it without an enclosing capture.
+                    tb.Tag(box_value(indexed.globalIndex));
+
+                    // Wire up tap-to-select on the preview text.
+                    tb.Tapped({ this, &ReviewPage::SegmentTextBlock_Tapped });
+
+                    // Populate the TextBlock's inline content (handles both
+                    // the masked-text display and selection highlighting).
+                    ApplySegmentInlines(tb, indexed.globalIndex);
 
                     double left = seg.OriginX() * scale;
                     double top = (seg.OriginY() - seg.FontSize()) * scale;
@@ -648,7 +767,7 @@ namespace winrt::DocRedactorApp::implementation
 
         auto segments = m_parseResult.Segments();
 
-        // Walk every tracked segment TextBlock and recompute its text.
+        // Walk every tracked segment TextBlock and recompute its inlines.
         // We could optimize to only refresh segments touched by the toggled
         // match, but PropertyChanged doesn't tell us which match toggled,
         // and there are typically few segments. O(n) is fine.
@@ -658,9 +777,7 @@ namespace winrt::DocRedactorApp::implementation
             {
                 continue;
             }
-
-            auto seg = segments.GetAt(segIdx);
-            tb.Text(ComposeSegmentDisplayText(segIdx, seg.Text()));
+            ApplySegmentInlines(tb, segIdx);
         }
     }
 
@@ -767,6 +884,7 @@ namespace winrt::DocRedactorApp::implementation
         m_matchViewModels = nullptr;
         m_parseResult = nullptr;
         m_segmentTextBlocks.clear();
+        m_selectedMatchIndex = -1;
         PreviewStack().Children().Clear();
         MatchesList().ItemsSource(nullptr);
         MatchesBorder().Visibility(Visibility::Collapsed);
@@ -860,6 +978,240 @@ namespace winrt::DocRedactorApp::implementation
             std::wstring errorText = L"Error: ";
             errorText += std::wstring{ ex.message() };
             ResultSummaryText().Text(winrt::hstring{ errorText });
+        }
+    }
+
+    void ReviewPage::MatchesList_SelectionChanged(
+        IInspectable const& /*sender*/,
+        Microsoft::UI::Xaml::Controls::SelectionChangedEventArgs const& /*e*/)
+    {
+        // Re-entry guard: if SetSelectedMatch just programmatically set the
+        // SelectedIndex (e.g. because the user clicked the preview), this
+        // event fires too. Skip the routing in that case to avoid loops.
+        if (m_isUpdatingSelection) return;
+
+        int32_t newIndex = MatchesList().SelectedIndex();
+        SetSelectedMatch(newIndex);
+    }
+
+    void ReviewPage::SegmentTextBlock_Tapped(
+        IInspectable const& sender,
+        Microsoft::UI::Xaml::Input::TappedRoutedEventArgs const& e)
+    {
+        try
+        {
+            auto tb = sender.try_as<Microsoft::UI::Xaml::Controls::TextBlock>();
+            if (tb == nullptr) return;
+
+            auto tag = tb.Tag();
+            int32_t segIdx = winrt::unbox_value_or<int32_t>(tag, -1);
+            if (segIdx < 0) return;
+
+            // Find matches in this segment.
+            if (m_matchViewModels == nullptr || m_matchViewModels.Size() == 0)
+            {
+                SetSelectedMatch(-1);
+                return;
+            }
+
+            // Collect indices of matches that belong to this segment.
+            std::vector<uint32_t> candidates;
+            for (uint32_t i = 0; i < m_matchViewModels.Size(); ++i)
+            {
+                auto match = m_matchViewModels.GetAt(i).Match();
+                if (match.SegmentIndex() == segIdx)
+                {
+                    candidates.push_back(i);
+                }
+            }
+
+            if (candidates.empty())
+            {
+                SetSelectedMatch(-1);
+                return;
+            }
+
+            if (candidates.size() == 1)
+            {
+                SetSelectedMatch(static_cast<int32_t>(candidates[0]));
+                return;
+            }
+
+            // Multiple matches in this segment — pick by character position.
+            // GetPosition can throw or return invalid points if the visual
+            // tree is in an unusual state (e.g. mid-relayout when the Run
+            // inline structure was just rebuilt). Catch defensively and fall
+            // back to selecting the first candidate.
+            double clickX = 0;
+            try
+            {
+                auto point = e.GetPosition(tb);
+                clickX = point.X;
+            }
+            catch (...)
+            {
+                SetSelectedMatch(static_cast<int32_t>(candidates[0]));
+                return;
+            }
+
+            double glyphWidth = 14.0 * 0.55;
+            int32_t clickChar = static_cast<int32_t>(clickX / glyphWidth);
+
+            uint32_t bestIdx = candidates[0];
+            int32_t bestDistance = INT32_MAX;
+            for (uint32_t i : candidates)
+            {
+                auto match = m_matchViewModels.GetAt(i).Match();
+                int32_t mStart = match.PositionInSegment();
+                int32_t mEnd = mStart + match.Length();
+
+                int32_t distance;
+                if (clickChar >= mStart && clickChar < mEnd)
+                {
+                    distance = 0;
+                }
+                else if (clickChar < mStart)
+                {
+                    distance = mStart - clickChar;
+                }
+                else
+                {
+                    distance = clickChar - (mEnd - 1);
+                }
+
+                if (distance < bestDistance)
+                {
+                    bestDistance = distance;
+                    bestIdx = i;
+                }
+            }
+
+            SetSelectedMatch(static_cast<int32_t>(bestIdx));
+        }
+        catch (winrt::hresult_error const& ex)
+        {
+            // Diagnostic so we can see what's failing if this still crashes.
+            std::wstring dbg = L"[SegmentTextBlock_Tapped] HRESULT ";
+            wchar_t buf[32];
+            swprintf_s(buf, L"0x%08X: ", static_cast<uint32_t>(ex.code()));
+            dbg += buf;
+            dbg += std::wstring{ ex.message() };
+            dbg += L"\n";
+            OutputDebugStringW(dbg.c_str());
+        }
+        catch (...)
+        {
+            OutputDebugStringW(L"[SegmentTextBlock_Tapped] unknown exception\n");
+        }
+    }
+
+    void ReviewPage::SetSelectedMatch(int32_t matchIndex)
+    {
+        // Validate.
+        if (m_matchViewModels == nullptr) matchIndex = -1;
+        else if (matchIndex >= 0
+            && static_cast<uint32_t>(matchIndex) >= m_matchViewModels.Size())
+        {
+            matchIndex = -1;
+        }
+
+        // No change?
+        if (matchIndex == m_selectedMatchIndex) return;
+
+        int32_t previousIndex = m_selectedMatchIndex;
+        m_selectedMatchIndex = matchIndex;
+
+        // Update the ListView under the re-entry guard so the
+        // MatchesList_SelectionChanged handler doesn't re-call us.
+        m_isUpdatingSelection = true;
+        try
+        {
+            MatchesList().SelectedIndex(matchIndex);
+            if (matchIndex >= 0)
+            {
+                // Scroll the list to bring the selected row into view too.
+                auto item = m_matchViewModels.GetAt(matchIndex);
+                MatchesList().ScrollIntoView(item);
+            }
+        }
+        catch (...) { /* defensive */ }
+        m_isUpdatingSelection = false;
+
+        // Re-render the affected segments' inlines. We touch at most two:
+        // the previously-selected match's segment (to remove highlight) and
+        // the newly-selected match's segment (to add highlight). If both
+        // matches are in the same segment, one ApplySegmentInlines call
+        // suffices.
+        auto refreshSegment = [this](int32_t mi) {
+            if (mi < 0 || m_matchViewModels == nullptr) return;
+            if (static_cast<uint32_t>(mi) >= m_matchViewModels.Size()) return;
+            int32_t segIdx = m_matchViewModels.GetAt(mi).Match().SegmentIndex();
+            auto it = m_segmentTextBlocks.find(segIdx);
+            if (it != m_segmentTextBlocks.end())
+            {
+                ApplySegmentInlines(it->second, segIdx);
+            }
+            };
+        refreshSegment(previousIndex);
+        if (matchIndex != previousIndex) refreshSegment(matchIndex);
+
+        // Scroll the preview to center on the new selection.
+        if (matchIndex >= 0)
+        {
+            CenterPreviewOnMatch(matchIndex);
+        }
+    }
+
+    void ReviewPage::CenterPreviewOnMatch(int32_t matchIndex)
+    {
+        if (matchIndex < 0
+            || m_matchViewModels == nullptr
+            || static_cast<uint32_t>(matchIndex) >= m_matchViewModels.Size())
+        {
+            return;
+        }
+
+        auto match = m_matchViewModels.GetAt(matchIndex).Match();
+        int32_t segIdx = match.SegmentIndex();
+
+        auto it = m_segmentTextBlocks.find(segIdx);
+        if (it == m_segmentTextBlocks.end()) return;
+
+        auto& tb = it->second;
+
+        // Compute the TextBlock's vertical position relative to the
+        // PreviewScrollViewer's content area. We use TransformToVisual to
+        // walk the visual tree: tb -> page Border -> Canvas -> PreviewStack
+        // -> ScrollViewer Content. The Y component of the resulting point
+        // tells us the TextBlock's offset within the scrollable region.
+        try
+        {
+            auto transform = tb.TransformToVisual(PreviewStack());
+            auto point = transform.TransformPoint(
+                winrt::Windows::Foundation::Point{ 0, 0 });
+
+            double tbTop = point.Y;
+            double tbHeight = tb.ActualHeight();
+            if (tbHeight <= 0) tbHeight = 14.0;  // fallback to font size
+
+            double viewportHeight = PreviewScrollViewer().ViewportHeight();
+            double targetOffset = tbTop + (tbHeight / 2.0) - (viewportHeight / 2.0);
+
+            // Clamp to valid scroll range.
+            if (targetOffset < 0) targetOffset = 0;
+            double maxOffset = PreviewScrollViewer().ScrollableHeight();
+            if (targetOffset > maxOffset) targetOffset = maxOffset;
+
+            PreviewScrollViewer().ChangeView(
+                nullptr,                                  // no horizontal change
+                winrt::box_value(targetOffset).as<winrt::Windows::Foundation::IReference<double>>(),
+                nullptr,                                  // no zoom change
+                false);                                   // animated
+        }
+        catch (...)
+        {
+            // TransformToVisual can throw if the visual tree isn't fully
+            // realized yet (e.g. during initial load). Defensive swallow.
         }
     }
 }

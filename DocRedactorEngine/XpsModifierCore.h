@@ -58,9 +58,35 @@ inline std::wstring MaskPiiText(const std::wstring& original, DWORD category)
         break;
     }
     case PII_SSN:
+    {
+        // Show first digit + last 4 digits (e.g. "4**-**-7823").
+        int digitCount = 0;
+        for (auto ch : result) if (iswdigit(ch)) ++digitCount;
+
+        if (digitCount < 5) break;  // not enough digits to do partial mask
+
+        int seen = 0;
+        for (auto& ch : result) {
+            if (!iswdigit(ch)) continue;
+            if (seen >= 1 && seen < digitCount - 4) ch = MASK_CHAR;
+            ++seen;
+        }
+        break;
+    }
     case PII_DATE_OF_BIRTH:
     {
-        for (auto& ch : result) if (iswdigit(ch)) ch = MASK_CHAR;
+        // Mask M/D, keep 4-digit year. Walk digit-groups; any group of exactly
+        // 4 digits is preserved (the year), every other group is fully masked.
+        size_t i = 0;
+        while (i < result.size()) {
+            if (!iswdigit(result[i])) { ++i; continue; }
+            size_t groupStart = i;
+            while (i < result.size() && iswdigit(result[i])) ++i;
+            size_t groupLen = i - groupStart;
+            if (groupLen != 4) {
+                for (size_t j = groupStart; j < i; ++j) result[j] = MASK_CHAR;
+            }
+        }
         break;
     }
     case PII_CREDIT_CARD:

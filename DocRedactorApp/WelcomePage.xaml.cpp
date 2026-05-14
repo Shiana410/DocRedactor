@@ -6,6 +6,7 @@
 
 #include "App.xaml.h"
 #include "ReviewPage.xaml.h"
+#include "RecentFilesStore.h"
 
 #include <winrt/Windows.ApplicationModel.DataTransfer.h>
 #include <winrt/Windows.Storage.h>
@@ -14,8 +15,12 @@
 #include <winrt/Microsoft.UI.Xaml.h>
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
 #include <winrt/Microsoft.UI.Xaml.Interop.h>
+#include <winrt/Microsoft.UI.Xaml.Input.h>
+#include <winrt/Microsoft.UI.Xaml.Media.h>
+#include <winrt/Microsoft.UI.Xaml.Navigation.h>
 #include <winrt/Microsoft.UI.Dispatching.h>
 
+#include <filesystem>
 #include <Shobjidl.h>
 
 using namespace winrt;
@@ -32,6 +37,7 @@ namespace winrt::DocRedactorApp::implementation
     WelcomePage::WelcomePage()
     {
         InitializeComponent();
+        RefreshRecentsList();
     }
 
     void WelcomePage::DropZone_DragOver(
@@ -132,8 +138,24 @@ namespace winrt::DocRedactorApp::implementation
         NavigateToReview(file.Path());
     }
 
+    void WelcomePage::CtrlO_Invoked(
+        Microsoft::UI::Xaml::Input::KeyboardAccelerator const& /*sender*/,
+        Microsoft::UI::Xaml::Input::KeyboardAcceleratorInvokedEventArgs const& args)
+    {
+        args.Handled(true);
+
+        // Reuse the existing click handler. Fire-and-forget — the picker is
+        // async and there's nothing for us to do with the result here.
+        OpenFileButton_Click(OpenFileButton(), nullptr);
+    }
+
     void WelcomePage::NavigateToReview(winrt::hstring const& path)
     {
+        // Record this open in recents before navigating — even if the
+        // navigation itself fails, the file was successfully selected and
+        // belongs in recents.
+        winrt::DocRedactorApp::RecentFilesStore::Bump(path);
+
         if (auto frame = Frame())
         {
             frame.Navigate(
@@ -175,5 +197,147 @@ namespace winrt::DocRedactorApp::implementation
                     self->UnsupportedFileBar().IsOpen(false);
                 }
             });
+    }
+
+    void WelcomePage::OnNavigatedTo(
+        Microsoft::UI::Xaml::Navigation::NavigationEventArgs const& /*e*/)
+    {
+        // Refresh recents when coming back from ReviewPage — the file we
+        // just opened needs to bubble to the top of the list.
+        RefreshRecentsList();
+    }
+
+    void WelcomePage::RefreshRecentsList()
+    {
+        auto entries = winrt::DocRedactorApp::RecentFilesStore::Load();
+
+        // ListView gets cleared and rebuilt. With max 10 items, the cost
+        // is trivial and avoids fiddly partial-update logic.
+        RecentsList().Items().Clear();
+
+        for (auto const& entry : entries)
+        {
+            auto row = BuildRecentRow(entry);
+            RecentsList().Items().Append(row);
+        }
+
+        bool hasEntries = !entries.empty();
+        RecentsList().Visibility(hasEntries ? Visibility::Visible : Visibility::Collapsed);
+        RecentsEmptyText().Visibility(hasEntries ? Visibility::Collapsed : Visibility::Visible);
+        ClearRecentsButton().IsEnabled(hasEntries);
+    }
+
+    Microsoft::UI::Xaml::FrameworkElement WelcomePage::BuildRecentRow(
+        winrt::DocRedactorApp::RecentFile const& entry)
+    {
+        // Split path into filename + parent folder using std::filesystem.
+        // entry.Path is absolute Windows path, e.g. "C:\Foo\bar.xps".
+        std::wstring fullPath{ entry.Path };
+        std::filesystem::path p{ fullPath };
+        std::wstring filename = p.filename().wstring();
+        std::wstring parent = p.parent_path().wstring();
+
+        if (filename.empty())
+        {
+            // Defensive: malformed path. Fall back to the whole string.
+            filename = fullPath;
+            parent = L"";
+        }
+
+        StackPanel stack;
+        stack.Orientation(Orientation::Vertical);
+        stack.Spacing(2);
+
+        TextBlock nameBlock;
+        nameBlock.Text(winrt::hstring{ filename });
+        nameBlock.Style(
+            Application::Current().Resources()
+            .Lookup(box_value(L"BodyStrongTextBlockStyle"))
+            .as<Microsoft::UI::Xaml::Style>());
+        nameBlock.TextTrimming(TextTrimming::CharacterEllipsis);
+        nameBlock.TextWrapping(TextWrapping::NoWrap);
+
+        TextBlock folderBlock;
+        folderBlock.Text(winrt::hstring{ parent });
+        folderBlock.Style(
+            Application::Current().Resources()
+            .Lookup(box_value(L"CaptionTextBlockStyle"))
+            .as<Microsoft::UI::Xaml::Style>());
+        folderBlock.Foreground(
+            Application::Current().Resources()
+            .Lookup(box_value(L"TextFillColorSecondaryBrush"))
+            .as<Microsoft::UI::Xaml::Media::Brush>());
+        folderBlock.TextTrimming(TextTrimming::CharacterEllipsis);
+        folderBlock.TextWrapping(TextWrapping::NoWrap);
+
+        stack.Children().Append(nameBlock);
+        stack.Children().Append(folderBlock);
+
+        // Stash the full path in Tag so the click handler can find it
+        // without round-tripping through the displayed text.
+        stack.Tag(box_value(entry.Path));
+
+        return stack;
+    }
+
+    winrt::Windows::Foundation::IAsyncAction WelcomePage::RecentsList_ItemClick(
+        IInspectable const& /*sender*/,
+        Microsoft::UI::Xaml::Controls::ItemClickEventArgs const& e)
+    {
+        auto clicked = e.ClickedItem().try_as<FrameworkElement>();
+        if (clicked == nullptr) co_return;
+
+        auto pathBoxed = clicked.Tag();
+        auto path = winrt::unbox_value_or<winrt::hstring>(pathBoxed, L"");
+        if (path.empty()) co_return;
+
+        // Lazy stale handling: try to open. If it fails, set a flag and
+        // handle outside the try block — C++ coroutines forbid co_await
+        // inside a catch handler, so we can't auto-dismiss the toast there.
+        bool fileExists = true;
+        try
+        {
+            auto file = co_await Windows::Storage::StorageFile::GetFileFromPathAsync(path);
+            (void)file;  // existence check only; NavigateToReview re-opens.
+        }
+        catch (winrt::hresult_error const&)
+        {
+            fileExists = false;
+        }
+
+        if (fileExists)
+        {
+            NavigateToReview(path);
+            co_return;
+        }
+
+        // Stale file path: prune from recents, show toast, auto-dismiss.
+        winrt::DocRedactorApp::RecentFilesStore::Remove(path);
+        RefreshRecentsList();
+
+        UnsupportedFileBar().Severity(Microsoft::UI::Xaml::Controls::InfoBarSeverity::Warning);
+        UnsupportedFileBar().Title(L"File not found");
+        std::wstring msg = L"Removed from recents: ";
+        msg += std::wstring{ path };
+        UnsupportedFileBar().Message(winrt::hstring{ msg });
+        UnsupportedFileBar().IsOpen(true);
+
+        auto uiDispatcher = DispatcherQueue();
+        co_await std::chrono::seconds{ 4 };
+        uiDispatcher.TryEnqueue([weakThis = get_weak()]()
+            {
+                if (auto self = weakThis.get())
+                {
+                    self->UnsupportedFileBar().IsOpen(false);
+                }
+            });
+    }
+
+    void WelcomePage::ClearRecentsButton_Click(
+        IInspectable const& /*sender*/,
+        RoutedEventArgs const& /*e*/)
+    {
+        winrt::DocRedactorApp::RecentFilesStore::Clear();
+        RefreshRecentsList();
     }
 }

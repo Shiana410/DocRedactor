@@ -9,7 +9,13 @@
     mc:Ignorable="d"
     Title="DocRedactor">
 
-    <Grid>
+    <Grid x:Name="RootGrid">
+        <Grid.KeyboardAccelerators>
+            <KeyboardAccelerator
+                Modifiers="Control"
+                Key="W"
+                Invoked="CtrlW_Invoked"/>
+        </Grid.KeyboardAccelerators>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -44,20 +50,20 @@
 
             <!-- New: gear icon for settings -->
             <Button
-        x:Name="SettingsButton"
-        Grid.Column="1"
-        Click="SettingsButton_Click"
-        Background="Transparent"
-        BorderThickness="0"
-        Width="46"
-        Height="40"
-        Padding="0"
-        VerticalAlignment="Stretch"
-        ToolTipService.ToolTip="Settings"
-        Margin="0,0,140,0">
+            x:Name="SettingsButton"
+            Grid.Column="1"
+            Click="SettingsButton_Click"
+            Background="Transparent"
+            BorderThickness="0"
+            Width="46"
+            Height="40"
+            Padding="0"
+            VerticalAlignment="Stretch"
+            ToolTipService.ToolTip="Settings"
+            Margin="0,0,8,0">
                 <FontIcon
-            Glyph="&#xE713;"
-            FontSize="16"/>
+                Glyph="&#xE713;"
+                FontSize="16"/>
             </Button>
         </Grid>
 

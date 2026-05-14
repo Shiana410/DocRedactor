@@ -10,6 +10,18 @@
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
     <Grid Padding="32">
+        <Grid.KeyboardAccelerators>
+            <KeyboardAccelerator
+                Modifiers="Control"
+                Key="S"
+                Invoked="CtrlS_Invoked"/>
+            <KeyboardAccelerator
+                Key="Escape"
+                Invoked="Escape_Invoked"/>
+            <KeyboardAccelerator
+                Key="F5"
+                Invoked="F5_Invoked"/>
+        </Grid.KeyboardAccelerators>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -67,14 +79,14 @@
                     x:Name="PreviewScrollViewer"
                     HorizontalScrollBarVisibility="Auto"
                     VerticalScrollBarVisibility="Auto"
-                    Padding="16"
+                    Padding="20"
                     SizeChanged="PreviewScrollViewer_SizeChanged">
                     <StackPanel
                         x:Name="PreviewStack"
                         Orientation="Vertical"
                         Spacing="16"
-                        HorizontalAlignment="Center">
-                        <!-- Placeholder shown until pages render in Phase 3 -->
+                        HorizontalAlignment="Stretch">
+                        <!-- Placeholder shown until pages render. -->
                         <TextBlock
                             x:Name="PreviewPlaceholderText"
                             Text="Page preview will appear here"

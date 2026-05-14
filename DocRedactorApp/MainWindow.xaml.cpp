@@ -6,6 +6,8 @@
 
 #include "WelcomePage.xaml.h"
 #include <winrt/Microsoft.UI.Xaml.Controls.Primitives.h>
+#include <winrt/Microsoft.UI.Xaml.Input.h>
+#include <winrt/Windows.System.h>
 #include "SettingsContent.xaml.h"
 
 using namespace winrt;
@@ -19,6 +21,11 @@ namespace winrt::DocRedactorApp::implementation
     MainWindow::MainWindow()
     {
         InitializeComponent();
+        Microsoft::UI::Xaml::Input::KeyboardAccelerator commaAccel;
+        commaAccel.Modifiers(Windows::System::VirtualKeyModifiers::Control);
+        commaAccel.Key(static_cast<Windows::System::VirtualKey>(188));
+        commaAccel.Invoked({ this, &MainWindow::CtrlComma_Invoked });
+        RootGrid().KeyboardAccelerators().Append(commaAccel);
         ContentFrame().Navigate(winrt::xaml_typename<DocRedactorApp::WelcomePage>());
     }
 
@@ -27,7 +34,12 @@ namespace winrt::DocRedactorApp::implementation
         RoutedEventArgs const& /*e*/)
     {
         auto button = sender.as<Microsoft::UI::Xaml::Controls::Button>();
+        co_await ShowSettingsDialogAsync(button.XamlRoot());
+    }
 
+    winrt::Windows::Foundation::IAsyncAction MainWindow::ShowSettingsDialogAsync(
+        Microsoft::UI::Xaml::XamlRoot xamlRoot)
+    {
         // Build the dialog content.
         auto settingsContent = winrt::make<implementation::SettingsContent>();
 
@@ -36,7 +48,7 @@ namespace winrt::DocRedactorApp::implementation
         // dismissal isn't tied to focus loss to OS windows.
         Microsoft::UI::Xaml::Controls::ContentDialog dialog;
         dialog.Content(settingsContent);
-        dialog.XamlRoot(button.XamlRoot());
+        dialog.XamlRoot(xamlRoot);
 
         // We use SettingsContent's own Save/Cancel buttons, so suppress the
         // ContentDialog's default action buttons.
@@ -52,9 +64,33 @@ namespace winrt::DocRedactorApp::implementation
                 dialog.Hide();
             });
 
-        // Show the dialog and wait for it to close. ShowAsync returns the
-        // ContentDialogResult but we don't need it - SettingsContent already
-        // persisted what needed persisting before firing RequestClose.
         co_await dialog.ShowAsync();
+    }
+
+    void MainWindow::CtrlComma_Invoked(
+        Microsoft::UI::Xaml::Input::KeyboardAccelerator const& /*sender*/,
+        Microsoft::UI::Xaml::Input::KeyboardAcceleratorInvokedEventArgs const& args)
+    {
+        // Mark handled so the accelerator doesn't bubble (no parent would
+        // care, but it's good hygiene).
+        args.Handled(true);
+
+        // Fire-and-forget the async dialog. Pulling XamlRoot from RootGrid
+        // since we have no Button sender to ask.
+        ShowSettingsDialogAsync(RootGrid().XamlRoot());
+    }
+
+    void MainWindow::CtrlW_Invoked(
+        Microsoft::UI::Xaml::Input::KeyboardAccelerator const& /*sender*/,
+        Microsoft::UI::Xaml::Input::KeyboardAcceleratorInvokedEventArgs const& args)
+    {
+        args.Handled(true);
+
+        // Single-window app: closing the window exits the process.
+        // Note: Ctrl+W does NOT close open dialogs — the accelerator lives on
+        // RootGrid, but ContentDialogs render in the popup layer outside that
+        // tree, so the keystroke never reaches us while a dialog is up. Use
+        // Esc or the dialog's Cancel/Close button to dismiss dialogs.
+        this->Close();
     }
 }

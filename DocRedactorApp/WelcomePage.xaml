@@ -10,9 +10,23 @@
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
     <Grid>
-        <!-- Toast-style InfoBar at the top, hidden by default -->
+        <Grid.KeyboardAccelerators>
+            <KeyboardAccelerator
+                Modifiers="Control"
+                Key="O"
+                Invoked="CtrlO_Invoked"/>
+        </Grid.KeyboardAccelerators>
+
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="7*"/>
+            <ColumnDefinition Width="3*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Toast-style InfoBar at the top, overlays full window width -->
         <InfoBar
             x:Name="UnsupportedFileBar"
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
             VerticalAlignment="Top"
             Margin="24,24,24,0"
             IsOpen="False"
@@ -21,7 +35,9 @@
             Message="DocRedactor only accepts .xps and .oxps files."
             Canvas.ZIndex="10"/>
 
+        <!-- LEFT COLUMN (7) — original main structure, centered -->
         <StackPanel
+            Grid.Column="0"
             HorizontalAlignment="Center"
             VerticalAlignment="Center"
             Spacing="24"
@@ -91,5 +107,72 @@
                 HorizontalAlignment="Center"
                 MinWidth="160"/>
         </StackPanel>
+
+        <!-- RIGHT COLUMN (3) — recent files panel, top-aligned -->
+        <!-- RIGHT COLUMN (3) — recent files panel, top-aligned, wrapped in a card -->
+        <Border
+            Grid.Column="1"
+            Background="{ThemeResource ControlFillColorDefaultBrush}"
+            BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Margin="8,24,24,24"
+            Padding="20">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Header row: title + Clear button -->
+                <Grid Grid.Row="0" Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock
+                        Grid.Column="0"
+                        Text="Recent files"
+                        Style="{ThemeResource BodyStrongTextBlockStyle}"
+                        VerticalAlignment="Center"/>
+
+                    <Button
+                        x:Name="ClearRecentsButton"
+                        Grid.Column="1"
+                        Content="Clear"
+                        Click="ClearRecentsButton_Click"
+                        Style="{ThemeResource DefaultButtonStyle}"
+                        IsEnabled="False"
+                        MinWidth="0"
+                        Padding="12,4"/>
+                </Grid>
+
+                <!-- The list itself, or the empty-state hint -->
+                <Grid Grid.Row="1">
+                    <TextBlock
+                        x:Name="RecentsEmptyText"
+                        Text="No recent files"
+                        Style="{ThemeResource BodyTextBlockStyle}"
+                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                        Visibility="Visible"/>
+
+                    <ListView
+                        x:Name="RecentsList"
+                        Visibility="Collapsed"
+                        SelectionMode="None"
+                        IsItemClickEnabled="True"
+                        ItemClick="RecentsList_ItemClick"
+                        Padding="0">
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem">
+                                <Setter Property="Padding" Value="8,6"/>
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            </Style>
+                        </ListView.ItemContainerStyle>
+                    </ListView>
+                </Grid>
+            </Grid>
+        </Border>
     </Grid>
 </Page>

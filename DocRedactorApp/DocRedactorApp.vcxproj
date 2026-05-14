@@ -137,6 +137,7 @@
       <DependentUpon>MainWindow.xaml</DependentUpon>
     </ClInclude>
     <ClInclude Include="PiiMatchViewModel.h" />
+    <ClInclude Include="RecentFilesStore.h" />
     <ClInclude Include="ReviewPage.xaml.h">
       <DependentUpon>ReviewPage.xaml</DependentUpon>
       <SubType>Code</SubType>
@@ -176,6 +177,7 @@
     </ClCompile>
     <ClCompile Include="$(GeneratedFilesDir)module.g.cpp" />
     <ClCompile Include="PiiMatchViewModel.cpp" />
+    <ClCompile Include="RecentFilesStore.cpp" />
     <ClCompile Include="ReviewPage.xaml.cpp">
       <DependentUpon>ReviewPage.xaml</DependentUpon>
       <SubType>Code</SubType>

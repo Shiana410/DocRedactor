@@ -29,8 +29,27 @@ namespace winrt::DocRedactorApp::implementation
             winrt::Windows::Foundation::IInspectable const& sender,
             winrt::Microsoft::UI::Xaml::SizeChangedEventArgs const& e);
 
+        // Ctrl+S — invoke Redact and Save if enabled.
+        void CtrlS_Invoked(
+            winrt::Microsoft::UI::Xaml::Input::KeyboardAccelerator const& sender,
+            winrt::Microsoft::UI::Xaml::Input::KeyboardAcceleratorInvokedEventArgs const& args);
+
+        // Esc — go Back. (If a ContentDialog is open, it consumes Esc first.)
+        void Escape_Invoked(
+            winrt::Microsoft::UI::Xaml::Input::KeyboardAccelerator const& sender,
+            winrt::Microsoft::UI::Xaml::Input::KeyboardAcceleratorInvokedEventArgs const& args);
+
+        // F5 — re-parse and re-detect against the original file. Confirms
+        // first if the user has unchecked any matches.
+        winrt::Windows::Foundation::IAsyncAction F5_Invoked(
+            winrt::Microsoft::UI::Xaml::Input::KeyboardAccelerator const& sender,
+            winrt::Microsoft::UI::Xaml::Input::KeyboardAcceleratorInvokedEventArgs const& args);
+
     private:
         winrt::Windows::Storage::StorageFile m_inputFile{ nullptr };
+
+        // Captured at first navigation so F5 can reload without an event.
+        winrt::hstring m_inputFilePath{};
 
         winrt::Windows::Foundation::Collections::IObservableVector<winrt::DocRedactorApp::PiiMatchViewModel> m_matchViewModels{ nullptr };
 
@@ -39,6 +58,15 @@ namespace winrt::DocRedactorApp::implementation
         winrt::DocRedactorEngine::XpsParseResult m_parseResult{ nullptr };
 
         void UpdateRedactButtonState();
+
+        // Returns true if the user has unchecked at least one match —
+        // i.e. their state differs from the freshly-loaded "all checked"
+        // default. Used by F5 to decide whether to confirm.
+        bool HasUserEdits() const;
+
+        // Core reload logic shared by F5 and (potentially) other triggers.
+        // Re-parses m_inputFile and rebuilds the match list / preview.
+        winrt::Windows::Foundation::IAsyncAction ReloadAsync();
 
         // Renders all pages from m_parseResult into PreviewStack at the
         // current PreviewScrollViewer width. Clears existing rendering first.

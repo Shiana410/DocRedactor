@@ -78,7 +78,13 @@ namespace winrt::DocRedactorApp::AppSettings
         auto values = GetValues();
         if (auto entry = values.TryLookup(KEY_DETECTION_FLAGS))
         {
-            return winrt::unbox_value_or<uint32_t>(entry, DefaultDetectionFlags);
+            uint32_t stored = winrt::unbox_value_or<uint32_t>(entry, DefaultDetectionFlags);
+            if ((stored & DefaultDetectionFlags) != DefaultDetectionFlags)
+            {
+                stored |= DefaultDetectionFlags;
+                values.Insert(KEY_DETECTION_FLAGS, winrt::box_value(stored));
+            }
+            return stored;
         }
         return DefaultDetectionFlags;
     }

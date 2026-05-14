@@ -40,6 +40,7 @@ namespace winrt::DocRedactorApp::implementation
     {
         auto path = unbox_value_or<hstring>(e.Parameter(), L"");
         FilePathText().Text(path);
+        m_inputFilePath = path;
 
         if (path.empty())
         {
@@ -61,6 +62,14 @@ namespace winrt::DocRedactorApp::implementation
             // Filter raw matches against the user's detection flag settings.
             // Categories disabled in Settings get dropped before display.
             uint32_t enabledFlags = AppSettings::GetDetectionFlags();
+            // DIAGNOSTIC: log the actual flag value.
+            {
+                wchar_t buf[64];
+                swprintf_s(buf, L"[ReviewPage] enabledFlags = 0x%02X (raw count=%u)\n",
+                    enabledFlags, rawMatches.Size());
+                OutputDebugStringW(buf);
+            }
+
             auto filteredMatches = winrt::single_threaded_vector<winrt::DocRedactorEngine::PiiMatch>();
             for (uint32_t i = 0; i < rawMatches.Size(); ++i)
             {
@@ -524,17 +533,12 @@ namespace winrt::DocRedactorApp::implementation
             return;
         }
 
-        // Compute the available width for the preview.
-        double availableWidth = PreviewScrollViewer().ActualWidth() -
-            PreviewScrollViewer().Padding().Left -
-            PreviewScrollViewer().Padding().Right;
-
-        if (availableWidth <= 0)
+        double paneWidth = PreviewScrollViewer().ActualWidth();
+        if (paneWidth <= 0)
         {
-            availableWidth = PreviewBorder().ActualWidth() - 32;
+            paneWidth = PreviewBorder().ActualWidth();
         }
-
-        if (availableWidth <= 0)
+        if (paneWidth <= 0)
         {
             return;
         }
@@ -568,7 +572,7 @@ namespace winrt::DocRedactorApp::implementation
                 continue;
             }
 
-            double scale = availableWidth / pageWidth;
+            constexpr double scale = 1.0;
             double scaledWidth = pageWidth * scale;
             double scaledHeight = pageHeight * scale;
 
@@ -592,7 +596,8 @@ namespace winrt::DocRedactorApp::implementation
 
                     TextBlock tb;
                     tb.Text(ComposeSegmentDisplayText(indexed.globalIndex, seg.Text()));
-                    tb.FontSize(seg.FontSize() * scale);
+                    tb.FontSize(14.0);
+                    tb.FontFamily(Microsoft::UI::Xaml::Media::FontFamily{ L"Consolas" });
 
                     double left = seg.OriginX() * scale;
                     double top = (seg.OriginY() - seg.FontSize()) * scale;
@@ -619,7 +624,16 @@ namespace winrt::DocRedactorApp::implementation
                 .Lookup(box_value(L"ControlStrokeColorDefaultBrush"))
                 .as<Microsoft::UI::Xaml::Media::Brush>());
             pageBorder.BorderThickness(ThicknessHelper::FromUniformLength(1));
+            pageBorder.CornerRadius(Microsoft::UI::Xaml::CornerRadiusHelper::FromUniformRadius(4));
+            pageBorder.Padding(ThicknessHelper::FromUniformLength(8));
+            pageBorder.HorizontalAlignment(HorizontalAlignment::Stretch);
             pageBorder.Child(canvas);
+
+            // Canvas itself stays at its native (document) size, top-left
+            // anchored inside the Border. Wide windows show empty space on
+            // the right of the Canvas; narrow windows trigger the ScrollViewer.
+            canvas.HorizontalAlignment(HorizontalAlignment::Left);
+            canvas.VerticalAlignment(VerticalAlignment::Top);
 
             PreviewStack().Children().Append(pageBorder);
         }
@@ -670,6 +684,182 @@ namespace winrt::DocRedactorApp::implementation
             {
                 frame.GoBack();
             }
+        }
+    }
+
+    void ReviewPage::CtrlS_Invoked(
+        Microsoft::UI::Xaml::Input::KeyboardAccelerator const& /*sender*/,
+        Microsoft::UI::Xaml::Input::KeyboardAcceleratorInvokedEventArgs const& args)
+    {
+        args.Handled(true);
+
+        // Honor the disabled state — pressing Ctrl+S when there's nothing to
+        // redact should be a no-op, not a "nothing to redact" warning toast.
+        if (!RedactButton().IsEnabled())
+        {
+            return;
+        }
+
+        // Fire-and-forget; RedactButton_Click manages its own UI state.
+        RedactButton_Click(RedactButton(), nullptr);
+    }
+
+    void ReviewPage::Escape_Invoked(
+        Microsoft::UI::Xaml::Input::KeyboardAccelerator const& /*sender*/,
+        Microsoft::UI::Xaml::Input::KeyboardAcceleratorInvokedEventArgs const& args)
+    {
+        args.Handled(true);
+        BackButton_Click(BackButton(), nullptr);
+    }
+
+    bool ReviewPage::HasUserEdits() const
+    {
+        if (m_matchViewModels == nullptr) return false;
+        for (uint32_t i = 0; i < m_matchViewModels.Size(); ++i)
+        {
+            if (!m_matchViewModels.GetAt(i).ShouldMask())
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    winrt::Windows::Foundation::IAsyncAction ReviewPage::F5_Invoked(
+        Microsoft::UI::Xaml::Input::KeyboardAccelerator const& /*sender*/,
+        Microsoft::UI::Xaml::Input::KeyboardAcceleratorInvokedEventArgs const& args)
+    {
+        args.Handled(true);
+
+        if (m_inputFilePath.empty())
+        {
+            co_return;
+        }
+
+        // Confirm if user has unchecked anything.
+        if (HasUserEdits())
+        {
+            Microsoft::UI::Xaml::Controls::ContentDialog dialog;
+            dialog.Title(box_value(L"Reload file?"));
+            dialog.Content(box_value(winrt::hstring{
+                L"Reloading will re-run PII detection from scratch. Your current "
+                L"checkbox selections will be lost. Continue?" }));
+            dialog.PrimaryButtonText(L"Reload");
+            dialog.CloseButtonText(L"Cancel");
+            dialog.DefaultButton(Microsoft::UI::Xaml::Controls::ContentDialogButton::Close);
+            dialog.XamlRoot(this->XamlRoot());
+
+            auto result = co_await dialog.ShowAsync();
+            if (result != Microsoft::UI::Xaml::Controls::ContentDialogResult::Primary)
+            {
+                co_return;
+            }
+        }
+
+        co_await ReloadAsync();
+    }
+
+    winrt::Windows::Foundation::IAsyncAction ReviewPage::ReloadAsync()
+    {
+        // Replay the same logic as OnNavigatedTo, but using the cached path
+        // so we don't need a NavigationEventArgs. Reset all UI state first
+        // so we don't leak stale data if the reload fails partway through.
+        m_matchViewModels = nullptr;
+        m_parseResult = nullptr;
+        m_segmentTextBlocks.clear();
+        PreviewStack().Children().Clear();
+        MatchesList().ItemsSource(nullptr);
+        MatchesBorder().Visibility(Visibility::Collapsed);
+        PlaceholderBorder().Visibility(Visibility::Visible);
+        ResultSummaryText().Text(L"");
+        RedactButton().IsEnabled(false);
+
+        if (m_inputFilePath.empty())
+        {
+            co_return;
+        }
+
+        try
+        {
+            auto file = co_await StorageFile::GetFileFromPathAsync(m_inputFilePath);
+            m_inputFile = file;
+
+            auto parser = winrt::DocRedactorEngine::XpsParser{};
+            m_parseResult = co_await parser.ParseAsync(file);
+            auto segments = m_parseResult.Segments();
+
+            auto detector = winrt::DocRedactorEngine::PiiDetector{};
+            auto rawMatches = co_await detector.DetectAsync(segments);
+
+            uint32_t enabledFlags = AppSettings::GetDetectionFlags();
+            // DIAGNOSTIC: log the actual flag value.
+            {
+                wchar_t buf[64];
+                swprintf_s(buf, L"[ReviewPage] enabledFlags = 0x%02X (raw count=%u)\n",
+                    enabledFlags, rawMatches.Size());
+                OutputDebugStringW(buf);
+            }
+            auto filteredMatches = winrt::single_threaded_vector<winrt::DocRedactorEngine::PiiMatch>();
+            for (uint32_t i = 0; i < rawMatches.Size(); ++i)
+            {
+                auto m = rawMatches.GetAt(i);
+                uint32_t cat = static_cast<uint32_t>(m.Category());
+                if ((enabledFlags & cat) != 0)
+                {
+                    filteredMatches.Append(m);
+                }
+            }
+
+            auto segmentCount = segments.Size();
+            auto matchCount = filteredMatches.Size();
+
+            std::wstring summary = L"Found ";
+            summary += std::to_wstring(matchCount);
+            summary += L" PII match(es) across ";
+            summary += std::to_wstring(segmentCount);
+            summary += L" text segment(s).";
+            ResultSummaryText().Text(winrt::hstring{ summary });
+
+            if (matchCount > 0)
+            {
+                m_matchViewModels = winrt::single_threaded_observable_vector<winrt::DocRedactorApp::PiiMatchViewModel>();
+                for (uint32_t i = 0; i < matchCount; ++i)
+                {
+                    auto vm = winrt::make<implementation::PiiMatchViewModel>(filteredMatches.GetAt(i));
+
+                    auto weakSelf = get_weak();
+                    vm.PropertyChanged([weakSelf](auto const&, Microsoft::UI::Xaml::Data::PropertyChangedEventArgs const& propArgs)
+                        {
+                            if (propArgs.PropertyName() == L"ShouldMask")
+                            {
+                                if (auto strongSelf = weakSelf.get())
+                                {
+                                    strongSelf->UpdateRedactButtonState();
+                                    strongSelf->RefreshSegmentDisplayText();
+                                }
+                            }
+                        });
+
+                    m_matchViewModels.Append(vm);
+                }
+
+                MatchesList().ItemsSource(m_matchViewModels);
+                PlaceholderBorder().Visibility(Visibility::Collapsed);
+                MatchesBorder().Visibility(Visibility::Visible);
+                UpdateRedactButtonState();
+                RenderPreview();
+            }
+
+            StatusBar().Severity(InfoBarSeverity::Success);
+            StatusBar().Title(L"Reloaded");
+            StatusBar().Message(L"File re-parsed from disk.");
+            StatusBar().IsOpen(true);
+        }
+        catch (winrt::hresult_error const& ex)
+        {
+            std::wstring errorText = L"Error: ";
+            errorText += std::wstring{ ex.message() };
+            ResultSummaryText().Text(winrt::hstring{ errorText });
         }
     }
 }
